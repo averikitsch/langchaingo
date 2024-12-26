@@ -70,6 +70,9 @@ func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) 
 	instanceURI := fmt.Sprintf("projects/%s/locations/%s/clusters/%s/instances/%s", cfg.projectID, cfg.region, cfg.cluster, cfg.instance)
 
 	config.ConnConfig.DialFunc = func(ctx context.Context, _ string, _ string) (net.Conn, error) {
+		if cfg.usePrivateIP {
+			return d.Dial(ctx, instanceURI, alloydbconn.WithPrivateIP())
+		}
 		return d.Dial(ctx, instanceURI, alloydbconn.WithPublicIP())
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
