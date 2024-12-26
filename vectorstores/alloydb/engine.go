@@ -68,7 +68,6 @@ func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) 
 		return nil, fmt.Errorf("failed to parse connection config: %w", err)
 	}
 	instanceURI := fmt.Sprintf("projects/%s/locations/%s/clusters/%s/instances/%s", cfg.projectID, cfg.region, cfg.cluster, cfg.instance)
-
 	config.ConnConfig.DialFunc = func(ctx context.Context, _ string, _ string) (net.Conn, error) {
 		if cfg.usePrivateIP {
 			return d.Dial(ctx, instanceURI, alloydbconn.WithPrivateIP())
@@ -82,9 +81,17 @@ func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) 
 	return pool, nil
 }
 
+// Close closes the connection.
+func (p *PostgresEngine) Close() {
+	if p.pool != nil {
+		// Close the connection pool.
+		p.pool.Close()
+	}
+}
+
 // getUser retrieves the username, a flag indicating if IAM authentication
 // will be used and an error.
-func getUser(ctx context.Context, config engineConfig) (username string, usingIAMAuth bool, err error) {
+func getUser(ctx context.Context, config engineConfig) (string, bool, error) {
 	// If neither user nor password are provided, retrieve IAM email.
 	if config.user == "" && config.password == "" {
 		serviceAccountEmail, err := config.emailRetreiver(ctx)
@@ -119,6 +126,7 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create new service: %w", err)
 	}
+
 	// Fetch IAM principal email.
 	userInfo, err := oauth2Service.Userinfo.Get().Do()
 	if err != nil {
