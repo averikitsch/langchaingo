@@ -7,26 +7,39 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v5"
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
 )
 
-// VectorStore is the interface for saving and querying documents in the
-// form of vector embeddings.
-type VectorStore interface {
-	AddDocuments(ctx context.Context, docs []schema.Document, options ...Option) ([]string, error)
-	SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...Option) ([]schema.Document, error) //nolint:lll
+type vectorStore struct {
+	engine              PostgresEngine
+	embedder            embeddings.Embedder
+	collectionName      string
+	embeddingTableName  string
+	collectionTableName string
+	collectionUUID      string
+}
+
+var _ vectorstores.VectorStore = &vectorStore{}
+
+// NewVectorStore creates a new Store with options.
+func NewVectorStore(ctx context.Context, opts ...VectoreStoresOption) (vectorStore, error) {
+	vs, err := ApplyVectorStoreOptions(opts...)
+	if err != nil {
+		return vectorStore{}, err
+	}
+	return vs, nil
 }
 
 // AddDocuments adds documents to the Postgres collection,
 // and returns the ids of the added documents.
-func (p *PostgresEngine) AddDocuments(ctx context.Context, docs []schema.Document, options ...Option) ([]string, error) {
+func (vs *vectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) {
 	opts := vectorstores.Options{}
-	for _, opt := range options { // should I add the required fields to the engineOptions??
-		opt(&opts)
+	if opts.ScoreThreshold != 0 || opts.Filters != nil || opts.NameSpace != "" {
+		return nil, errors.New("vector store unsupported options")
 	}
 
 	docs = deduplicate(ctx, opts, docs)
@@ -36,8 +49,7 @@ func (p *PostgresEngine) AddDocuments(ctx context.Context, docs []schema.Documen
 		texts = append(texts, doc.PageContent)
 	}
 
-	// TODO :: where else should I implement this embedder?
-	var embedder embeddings.Embedder
+	embedder := vs.embedder
 	if opts.Embedder != nil {
 		embedder = opts.Embedder
 	}
@@ -53,54 +65,33 @@ func (p *PostgresEngine) AddDocuments(ctx context.Context, docs []schema.Documen
 
 	b := &pgx.Batch{}
 	sql := fmt.Sprintf(`INSERT INTO %s (uuid, document, embedding, cmetadata, collection_id)
-		VALUES($1, $2, $3, $4, $5)`, s.embeddingTableName) // should I add embeddingTableName to the engine??
+	VALUES($1, $2, $3, $4, $5)`, vs.embeddingTableName)
 
 	ids := make([]string, len(docs))
 	for docIdx, doc := range docs {
 		id := uuid.New().String()
 		ids[docIdx] = id
-		// should I add collectionUUID to the engine??
-		b.Queue(sql, id, doc.PageContent, pgvector.NewVector(vectors[docIdx]), doc.Metadata, s.collectionUUID)
+		b.Queue(sql, id, doc.PageContent, pgvector.NewVector(vectors[docIdx]), doc.Metadata, vs.collectionUUID)
 	}
-	return ids, p.pool.SendBatch(ctx, b).Close()
-}
-
-func deduplicate(
-	ctx context.Context,
-	opts vectorstores.Options,
-	docs []schema.Document,
-) []schema.Document {
-	if opts.Deduplicater == nil {
-		return docs
-	}
-
-	filtered := make([]schema.Document, 0, len(docs))
-	for _, doc := range docs {
-		if !opts.Deduplicater(ctx, doc) {
-			filtered = append(filtered, doc)
-		}
-	}
-
-	return filtered
+	return ids, vs.engine.pool.SendBatch(ctx, b).Close()
 }
 
 // SimilaritySearch performs a similarity search on the database using the
 // query vector.
-func (p *PostgresEngine) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...Option) ([]schema.Document, error) {
-	opts := vectorstores.Options{}
-	for _, opt := range options {
-		opt(&opts)
+func (vs *vectorStore) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...vectorstores.Option) ([]schema.Document, error) {
+	opts := getOptions(options...)
+	if opts.NameSpace != "" {
+		vs.collectionName = opts.NameSpace
 	}
-	collectionName := s.getNameSpace(opts)
-	scoreThreshold, err := s.getScoreThreshold(opts)
+	scoreThreshold, err := validateScoreThreshold(opts.ScoreThreshold)
 	if err != nil {
 		return nil, err
 	}
-	filter, err := s.getFilters(opts)
+	filter, err := getFilters(opts)
 	if err != nil {
 		return nil, err
 	}
-	embedder := s.embedder
+	embedder := vs.embedder
 	if opts.Embedder != nil {
 		embedder = opts.Embedder
 	}
@@ -144,10 +135,11 @@ FROM (
 WHERE %s
 ORDER BY
 	data.distance
-LIMIT $3`, s.embeddingTableName,
-		s.collectionTableName, s.collectionTableName, s.collectionTableName, collectionName,
+LIMIT $3`, vs.embeddingTableName,
+		vs.collectionTableName, vs.collectionTableName, vs.collectionTableName, vs.collectionName,
 		whereQuery)
-	rows, err := p.pool.Query(ctx, sql, dims, pgvector.NewVector(embedderData), numDocuments)
+
+	rows, err := vs.engine.pool.Query(ctx, sql, dims, pgvector.NewVector(embedderData), numDocuments)
 	if err != nil {
 		return nil, err
 	}
@@ -164,13 +156,52 @@ LIMIT $3`, s.embeddingTableName,
 	return docs, rows.Err()
 }
 
-// TODO :: Check this! should have options instead
-func (p *PostgresEngine) applyVectorIndex(ctx context.Context, config vectorStoresConfig) error {
-	query := fmt.Sprintf(`
-        CREATE INDEX IF NOT EXISTS idx_%s_%s ON %s (%s);
-    `, config.tableName, config.columnName, config.tableName, config.columnName)
+func getOptions(options ...vectorstores.Option) vectorstores.Options {
+	opts := vectorstores.Options{}
+	for _, opt := range options {
+		opt(&opts)
+	}
+	return opts
+}
 
-	_, err := p.pool.Exec(ctx, query)
+func validateScoreThreshold(scoreThreshold float32) (float32, error) {
+	if scoreThreshold < 0 || scoreThreshold > 1 {
+		return 0, errors.New("score threshold must be between 0 and 1")
+	}
+	return scoreThreshold, nil
+}
+
+// getFilters return metadata filters, now only support map[key]value pattern
+// TODO: should support more types like {"key1": {"key2":"values2"}} or {"key": ["value1", "values2"]}.
+func getFilters(opts vectorstores.Options) (map[string]any, error) {
+	if opts.Filters != nil {
+		if filters, ok := opts.Filters.(map[string]any); ok {
+			return filters, nil
+		}
+		return nil, errors.New("invalid filters")
+	}
+	return map[string]any{}, nil
+}
+
+func deduplicate(ctx context.Context, opts vectorstores.Options, docs []schema.Document) []schema.Document {
+	if opts.Deduplicater == nil {
+		return docs
+	}
+	filtered := make([]schema.Document, 0, len(docs))
+	for _, doc := range docs {
+		if !opts.Deduplicater(ctx, doc) {
+			filtered = append(filtered, doc)
+		}
+	}
+	return filtered
+}
+
+// TODO :: Modify queries!
+func (vs *vectorStore) ApplyVectorIndex(ctx context.Context) error {
+	query := fmt.Sprintf(`
+        CREATE INDEX IF NOT EXISTS <changeTableName> ON <changeTableName>;`)
+
+	_, err := vs.engine.pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to apply vector index: %w", err)
 	}
@@ -178,12 +209,11 @@ func (p *PostgresEngine) applyVectorIndex(ctx context.Context, config vectorStor
 	return nil
 }
 
-func (p *PostgresEngine) reIndex(ctx context.Context, config vectorStoresConfig) error {
+func (vs *vectorStore) ReIndex(ctx context.Context) error {
 	query := fmt.Sprintf(`
-        REINDEX INDEX idx_%s_%s;
-    `, config.tableName, config.columnName)
+        REINDEX INDEX <changeTableName>;`)
 
-	_, err := p.pool.Exec(ctx, query)
+	_, err := vs.engine.pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to reindex: %w", err)
 	}
@@ -191,12 +221,11 @@ func (p *PostgresEngine) reIndex(ctx context.Context, config vectorStoresConfig)
 	return nil
 }
 
-func (p *PostgresEngine) dropVectorIndex(ctx context.Context, config vectorStoresConfig) error {
+func (vs *vectorStore) DropVectorIndex(ctx context.Context) error {
 	query := fmt.Sprintf(`
-        DROP INDEX IF EXISTS idx_%s_%s;
-    `, config.tableName, config.columnName)
+        DROP INDEX IF EXISTS <changeTableName>;`)
 
-	_, err := p.pool.Exec(ctx, query)
+	_, err := vs.engine.pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to drop vector index: %w", err)
 	}
@@ -204,15 +233,11 @@ func (p *PostgresEngine) dropVectorIndex(ctx context.Context, config vectorStore
 	return nil
 }
 
-func (p *PostgresEngine) isValidIndex(ctx context.Context, config vectorStoresConfig) (bool, error) {
-	query := fmt.Sprintf(`
-        SELECT COUNT(*)
-        FROM pg_indexes
-        WHERE tablename = $1 AND indexname = $2;
-    `)
+func (vs *vectorStore) IsValidIndex(ctx context.Context) (bool, error) {
+	query := fmt.Sprintf(` SELECT COUNT(*) FROM pg_indexes WHERE tablename = $1 AND indexname = $2; `)
 
 	var count int
-	err := p.pool.QueryRow(ctx, query, config.tableName, "idx_"+config.tableName+"_"+config.columnName).Scan(&count)
+	err := vs.engine.pool.QueryRow(ctx, query, "<changeTableName>", "<changeIndexName>`").Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("failed to check validate index: %w", err)
 	}
