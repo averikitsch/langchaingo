@@ -45,24 +45,17 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 
 // createPool creates a connection pool to the PostgreSQL database.
 func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
-	var d *alloydbconn.Dialer
-	var dsn string
-	var err error
-
-	// Create a new dialer to connect to the database.
-	if !usingIAMAuth {
-		d, err = alloydbconn.NewDialer(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize connection: %w", err)
-		}
-		dsn = fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
-	} else {
-		d, err = alloydbconn.NewDialer(ctx, alloydbconn.WithIAMAuthN())
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize connection: %w", err)
-		}
+	dialeropts := []alloydbconn.Option{}
+	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
+	if usingIAMAuth {
+		dialeropts = append(dialeropts, alloydbconn.WithIAMAuthN())
 		dsn = fmt.Sprintf("user=%s dbname=%s sslmode=disable", cfg.user, cfg.database)
 	}
+	d, err := alloydbconn.NewDialer(ctx, dialeropts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize connection: %w", err)
+	}
+
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection config: %w", err)
