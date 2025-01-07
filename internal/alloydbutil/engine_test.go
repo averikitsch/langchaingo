@@ -1,4 +1,4 @@
-package alloydb
+package alloydbutil
 
 import (
 	"context"

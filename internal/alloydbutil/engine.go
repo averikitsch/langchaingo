@@ -1,4 +1,4 @@
-package alloydb
+package alloydbutil
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 type EmailRetreiver func(context.Context) (string, error)
 
 type PostgresEngine struct {
-	pool *pgxpool.Pool
+	Pool *pgxpool.Pool
 }
 
 // NewPostgresEngine creates a new PostgresEngine.
@@ -34,17 +34,17 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 		cfg.user = user
 	}
 	if cfg.connPool == nil {
-		cfg.connPool, err = createConnection(ctx, cfg, usingIAMAuth)
+		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
 			return &PostgresEngine{}, err
 		}
 	}
-	pgEngine.pool = cfg.connPool
+	pgEngine.Pool = cfg.connPool
 	return pgEngine, nil
 }
 
-// createConnection creates a connection pool to the PostgreSQL database.
-func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
+// createPool creates a connection pool to the PostgreSQL database.
+func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
 	var d *alloydbconn.Dialer
 	var dsn string
 	var err error
@@ -69,7 +69,7 @@ func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) 
 	}
 	instanceURI := fmt.Sprintf("projects/%s/locations/%s/clusters/%s/instances/%s", cfg.projectID, cfg.region, cfg.cluster, cfg.instance)
 	config.ConnConfig.DialFunc = func(ctx context.Context, _ string, _ string) (net.Conn, error) {
-		if cfg.usePrivateIP {
+		if cfg.ipType == "PRIVATE" {
 			return d.Dial(ctx, instanceURI, alloydbconn.WithPrivateIP())
 		}
 		return d.Dial(ctx, instanceURI, alloydbconn.WithPublicIP())
@@ -83,9 +83,9 @@ func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) 
 
 // Close closes the connection.
 func (p *PostgresEngine) Close() {
-	if p.pool != nil {
+	if p.Pool != nil {
 		// Close the connection pool.
-		p.pool.Close()
+		p.Pool.Close()
 	}
 }
 
