@@ -3,6 +3,7 @@ package cloudsql
 import (
 	"cloud.google.com/go/cloudsqlconn"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2/google"
@@ -49,13 +50,13 @@ func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) 
 	var err error
 
 	if !usingIAMAuth {
-		d, err := cloudsqlconn.NewDialer(ctx)
+		d, err = cloudsqlconn.NewDialer(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize connection: %w", err)
 		}
 		dsn = fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
 	} else {
-		d, err := cloudsqlconn.NewDialer(ctx, cloudsqlconn.WithIAMAuthN())
+		d, err = cloudsqlconn.NewDialer(ctx, cloudsqlconn.WithIAMAuthN())
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize connection: %w", err)
 		}
