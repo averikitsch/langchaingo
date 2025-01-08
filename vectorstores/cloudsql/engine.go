@@ -1,7 +1,6 @@
 package cloudsql
 
 import (
-	"cloud.google.com/go/alloydbconn"
 	"cloud.google.com/go/cloudsqlconn"
 	"context"
 	"fmt"
