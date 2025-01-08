@@ -1,4 +1,4 @@
-package cloudsql
+package cloudsqlutil
 
 import (
 	"cloud.google.com/go/cloudsqlconn"
@@ -15,7 +15,7 @@ import (
 type EmailRetriever func(ctx context.Context) (string, error)
 
 type PostgresEngine struct {
-	pool *pgxpool.Pool
+	Pool *pgxpool.Pool
 }
 
 // NewPostgersEngine creates a new PostgresEngine
@@ -35,41 +35,36 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 	}
 
 	if cfg.connPool == nil {
-		if cfg.connPool, err = createConnection(ctx, cfg, usingIAMAuth); err != nil {
+		if cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth); err != nil {
 			return &PostgresEngine{}, err
 		}
 	}
-	pgEngine.pool = cfg.connPool
+	pgEngine.Pool = cfg.connPool
 	return pgEngine, nil
 }
 
-// createConnection creates a connection pool to the PostgreSQL database.
-func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
-	var d *cloudsqlconn.Dialer
-	var dsn string
-	var err error
-
-	if !usingIAMAuth {
-		d, err = cloudsqlconn.NewDialer(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize connection: %w", err)
-		}
-		dsn = fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
-	} else {
-		d, err = cloudsqlconn.NewDialer(ctx, cloudsqlconn.WithIAMAuthN())
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize connection: %w", err)
-		}
+// createPool creates a connection pool to the PostgreSQL database.
+func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
+	var dialerOpts []cloudsqlconn.Option
+	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
+	if usingIAMAuth {
+		dialerOpts = append(dialerOpts, cloudsqlconn.WithIAMAuthN())
 		dsn = fmt.Sprintf("user=%s dbname=%s sslmode=disable", cfg.user, cfg.database)
 	}
+
+	d, err := cloudsqlconn.NewDialer(ctx, dialerOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize connection: %w", err)
+	}
+
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+		return nil, fmt.Errorf("failed to parse connection config: %w", err)
 	}
 
 	instanceURI := fmt.Sprintf("projects/%s/locations/%s/clusters/%s/instances/%s", cfg.projectID, cfg.region, cfg.cluster, cfg.instance)
 	config.ConnConfig.DialFunc = func(ctx context.Context, _ string, _ string) (net.Conn, error) {
-		if cfg.usePrivateIP {
+		if cfg.ipType == PRIVATE {
 			return d.Dial(ctx, instanceURI, cloudsqlconn.WithPrivateIP())
 		}
 		return d.Dial(ctx, instanceURI, cloudsqlconn.WithPublicIP())
@@ -83,8 +78,8 @@ func createConnection(ctx context.Context, cfg engineConfig, usingIAMAuth bool) 
 
 // Close closes the pool connection
 func (p *PostgresEngine) Close() {
-	if p.pool != nil {
-		p.pool.Close()
+	if p.Pool != nil {
+		p.Pool.Close()
 	}
 }
 

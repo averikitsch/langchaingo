@@ -1,10 +1,14 @@
-package cloudsql
+package cloudsqlutil
 
 import (
 	"context"
 	"errors"
-
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	PUBLIC  = "PUBLIC"
+	PRIVATE = "PRIVATE"
 )
 
 // Option is a function type that can be used to modify the Engine.
@@ -19,7 +23,7 @@ type engineConfig struct {
 	database        string
 	user            string
 	password        string
-	usePrivateIP    bool
+	ipType          string
 	iAmAccountEmail string
 	emailRetreiver  EmailRetriever
 }
@@ -62,10 +66,10 @@ func WithPassword(password string) Option {
 	}
 }
 
-// WithPrivateIP sets the PrivateIP field.
-func WithPrivateIP(isPrivateIP bool) Option {
+// WithIPType sets the IpType field.
+func WithIPType(ipType string) Option {
 	return func(p *engineConfig) {
-		p.usePrivateIP = isPrivateIP
+		p.ipType = ipType
 	}
 }
 
@@ -86,7 +90,7 @@ func withServiceAccountRetriever(emailRetriever func(context.Context) (string, e
 func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
-		usePrivateIP:   false,
+		ipType:         PUBLIC,
 	}
 	for _, opt := range opts {
 		opt(cfg)
