@@ -1,4 +1,4 @@
-package alloydb
+package alloydbutil
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"cloud.google.com/go/alloydbconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/api/idtoken"
 	"google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 )
@@ -17,7 +16,7 @@ import (
 type EmailRetreiver func(context.Context) (string, error)
 
 type PostgresEngine struct {
-	pool *pgxpool.Pool
+	Pool *pgxpool.Pool
 }
 
 // NewPostgresEngine creates a new PostgresEngine.
@@ -27,47 +26,46 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 	if err != nil {
 		return nil, err
 	}
-	username, usingIAMAuth, err := getUser(ctx, cfg)
+	user, usingIAMAuth, err := getUser(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error assigning user. Err: %w", err)
 	}
 	if usingIAMAuth {
-		cfg.user = username
-		token, err := getIAMToken(ctx, username)
-		if err != nil {
-			return nil, err
-		}
-		cfg.password = token
+		cfg.user = user
 	}
 	if cfg.connPool == nil {
-		cfg.connPool, err = createConnection(ctx, cfg)
+		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
 			return &PostgresEngine{}, err
 		}
 	}
-	pgEngine.pool = cfg.connPool
+	pgEngine.Pool = cfg.connPool
 	return pgEngine, nil
 }
 
-// createConnection creates a connection pool to the PostgreSQL database.
-func createConnection(ctx context.Context, cfg engineConfig) (*pgxpool.Pool, error) {
-	// Create a new dialer with any options
-	d, err := alloydbconn.NewDialer(ctx)
+// createPool creates a connection pool to the PostgreSQL database.
+func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
+	dialeropts := []alloydbconn.Option{}
+	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
+	if usingIAMAuth {
+		dialeropts = append(dialeropts, alloydbconn.WithIAMAuthN())
+		dsn = fmt.Sprintf("user=%s dbname=%s sslmode=disable", cfg.user, cfg.database)
+	}
+	d, err := alloydbconn.NewDialer(ctx, dialeropts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize connection: %w", err)
 	}
 
-	// Configure the driver to connect to the database
-	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection config: %w", err)
 	}
-
 	instanceURI := fmt.Sprintf("projects/%s/locations/%s/clusters/%s/instances/%s", cfg.projectID, cfg.region, cfg.cluster, cfg.instance)
-	// Create the connection
 	config.ConnConfig.DialFunc = func(ctx context.Context, _ string, _ string) (net.Conn, error) {
-		return d.Dial(ctx, instanceURI)
+		if cfg.ipType == "PRIVATE" {
+			return d.Dial(ctx, instanceURI, alloydbconn.WithPrivateIP())
+		}
+		return d.Dial(ctx, instanceURI, alloydbconn.WithPublicIP())
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
@@ -78,9 +76,9 @@ func createConnection(ctx context.Context, cfg engineConfig) (*pgxpool.Pool, err
 
 // Close closes the connection.
 func (p *PostgresEngine) Close() {
-	if p.pool != nil {
+	if p.Pool != nil {
 		// Close the connection pool.
-		p.pool.Close()
+		p.Pool.Close()
 	}
 }
 
@@ -128,21 +126,4 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get user info: %w", err)
 	}
 	return userInfo.Email, nil
-}
-
-// getIAMToken retrieves the IAM token for a service account.
-func getIAMToken(ctx context.Context, serviceAccountEmail string) (string, error) {
-	// Create the OAuth2 token source using the service account's credentials
-	tokenSource, err := idtoken.NewTokenSource(ctx, serviceAccountEmail)
-	if err != nil {
-		return "", fmt.Errorf("failed to create token source: %w", err)
-	}
-
-	// Get the IAM token for authentication
-	token, err := tokenSource.Token()
-	if err != nil {
-		return "", fmt.Errorf("failed to get IAM token: %w", err)
-	}
-
-	return token.AccessToken, nil
 }

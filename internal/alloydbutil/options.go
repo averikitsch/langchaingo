@@ -1,4 +1,4 @@
-package alloydb
+package alloydbutil
 
 import (
 	"context"
@@ -86,6 +86,7 @@ func withServiceAccountRetriever(emailRetriever func(context.Context) (string, e
 func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
+		ipType:         "PUBLIC",
 	}
 	for _, opt := range opts {
 		opt(cfg)
