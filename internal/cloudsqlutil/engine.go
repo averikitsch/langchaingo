@@ -18,7 +18,7 @@ type PostgresEngine struct {
 	Pool *pgxpool.Pool
 }
 
-// NewPostgersEngine creates a new PostgresEngine
+// NewPostgresEngine creates a new PostgresEngine
 func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
