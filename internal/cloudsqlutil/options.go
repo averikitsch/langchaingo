@@ -6,18 +6,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const (
-	PUBLIC  = "PUBLIC"
-	PRIVATE = "PRIVATE"
-)
-
 // Option is a function type that can be used to modify the Engine.
 type Option func(p *engineConfig)
 
 type engineConfig struct {
 	projectID       string
 	region          string
-	cluster         string
 	instance        string
 	connPool        *pgxpool.Pool
 	database        string
@@ -29,11 +23,10 @@ type engineConfig struct {
 }
 
 // WithCloudSQLInstance sets the project, region, cluster, and instance fields.
-func WithCloudSQLInstance(projectID, region, cluster, instance string) Option {
+func WithCloudSQLInstance(projectID, region, instance string) Option {
 	return func(p *engineConfig) {
 		p.projectID = projectID
 		p.region = region
-		p.cluster = cluster
 		p.instance = instance
 	}
 }
@@ -90,12 +83,12 @@ func withServiceAccountRetriever(emailRetriever func(context.Context) (string, e
 func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
-		ipType:         PUBLIC,
+		ipType:         "PUBLIC",
 	}
 	for _, opt := range opts {
 		opt(cfg)
 	}
-	if cfg.connPool == nil && cfg.projectID == "" && cfg.region == "" && cfg.cluster == "" && cfg.instance == "" {
+	if cfg.connPool == nil && cfg.projectID == "" && cfg.region == "" && cfg.instance == "" {
 		return engineConfig{}, errors.New("missing connection: provide a connection pool or connection fields")
 	}
 
