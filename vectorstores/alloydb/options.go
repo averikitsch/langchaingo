@@ -19,7 +19,7 @@ type engineConfig struct {
 	database        string
 	user            string
 	password        string
-	ipType          string
+	usePrivateIP    bool
 	iAmAccountEmail string
 	emailRetreiver  EmailRetreiver
 }
@@ -62,10 +62,10 @@ func WithPassword(password string) Option {
 	}
 }
 
-// WithIPType sets the IpType field.
-func WithIPType(ipType string) Option {
+// WithPrivateIP sets the PrivateIP field.
+func WithPrivateIP(isPrivateIP bool) Option {
 	return func(p *engineConfig) {
-		p.ipType = ipType
+		p.usePrivateIP = isPrivateIP
 	}
 }
 
@@ -86,6 +86,7 @@ func withServiceAccountRetriever(emailRetriever func(context.Context) (string, e
 func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
+		usePrivateIP:   false,
 	}
 	for _, opt := range opts {
 		opt(cfg)
