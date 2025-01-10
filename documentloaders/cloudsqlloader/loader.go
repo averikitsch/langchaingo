@@ -3,10 +3,12 @@ package cloudsqlloader
 import (
 	"context"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
+	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/textsplitter"
 )
 
 type DocumentLoader struct {
-	engine             *cloudsqlutil.PostgresEngine // cloudsql engine with pool connection to the postgres database
+	pool               *cloudsqlutil.PostgresEngine // cloudsql engine with pool connection to the postgres database
 	query              string                       // SQL query. Defaults to None.
 	tableName          string                       // Name of table to query. Defaults to None.
 	schemaName         string                       //  Database schema name of the table. Defaults to "public".
@@ -26,4 +28,12 @@ func NewDocumentLoader(ctx context.Context, opts ...Option) (*DocumentLoader, er
 	}
 
 	return documentLoader, nil
+}
+
+func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
+	return nil, nil
+}
+
+func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter.TextSplitter) ([]schema.Document, error) {
+	return nil, nil
 }

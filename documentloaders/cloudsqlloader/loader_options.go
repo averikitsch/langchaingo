@@ -11,7 +11,7 @@ var formats []string = []string{"csv", "text", "JSON", "YAML"}
 
 func WithDocumentLoaderInstance(engine *cloudsqlutil.PostgresEngine, tableName string) Option {
 	return func(loader *DocumentLoader) error {
-		loader.engine = engine
+		loader.pool = engine
 		loader.tableName = tableName
 		return nil
 	}
