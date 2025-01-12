@@ -4,76 +4,110 @@ import (
 	"errors"
 
 	"github.com/tmc/langchaingo/embeddings"
+	"github.com/tmc/langchaingo/internal/alloydbutil"
+	"github.com/tmc/langchaingo/vectorstores"
 )
 
 const (
-	defaultCollectionName           = "langchain"
-	defaultPreDeleteCollection      = false
-	defaultEmbeddingStoreTableName  = "langchain_pg_embedding"
-	defaultCollectionStoreTableName = "langchain_pg_collection"
+	defaultIDColumn        = "langchain_id" // TODO :: Confirm this
+	defaultContentColumn   = "content"
+	defaultEmbeddingColumn = "embedding"
 )
 
-// VectoreStoresOption is a function for creating new vector store
+// MyQueryOptions options that can be converted to strings.
+type MyQueryOptions struct {
+	optionString string
+	optionInt    int
+}
+
+type QueryOptions interface {
+	ToString() string
+}
+
+// AlloyDBVectoreStoresOption is a function for creating new vector store
 // with other than the default values.
-type VectoreStoresOption func(vs *vectorStore)
+type AlloyDBVectoreStoresOption func(vs *VectorStore)
 
-// WithEngine sets the Engine field for the vectorStore.
-func WithEngine(engine PostgresEngine) VectoreStoresOption {
-	return func(vs *vectorStore) {
-		vs.engine = engine
+// WithContentColumn sets the idColumn field.
+func WithIDColumn(idColumn string) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.idColumn = idColumn
 	}
 }
 
-// WithEmbedder sets the Embedder field for the vectorStore.
-func WithEmbedder(embedder embeddings.Embedder) VectoreStoresOption {
-	return func(vs *vectorStore) {
-		vs.embedder = embedder
+// WithContentColumn sets the ContentColumn field.
+func WithContentColumn(contentColumn string) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.contentColumn = contentColumn
 	}
 }
 
-// WithEmbeddingTableName sets the embeddingTableName field for the vectorStore.
-func WithEmbeddingTableName(embeddingTableName string) VectoreStoresOption {
-	return func(vs *vectorStore) {
-		vs.embeddingTableName = embeddingTableName
+// WithEmbeddingColumn sets the EmbeddingColumn field.
+func WithEmbeddingColumn(embeddingColumn string) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.embeddingColumn = embeddingColumn
 	}
 }
 
-// WithCollectionTableName sets the collectionTableName field for the vectorStore.
-func WithCollectionTableName(collectionTableName string) VectoreStoresOption {
-	return func(vs *vectorStore) {
-		vs.collectionTableName = collectionTableName
+// WithMetadataColumns sets the MetadataColumns field.
+func WithMetadataColumns(metadataColumns []string) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.metadataColumns = metadataColumns
 	}
 }
 
-// WithCollectionUUID sets the collectionUUID field for the vectorStore.
-func WithCollectionUUID(collectionUUID string) VectoreStoresOption {
-	return func(vs *vectorStore) {
-		vs.collectionUUID = collectionUUID
+// WithOverwriteExisting is an option for VectorStore to
+// allow dangerous operations.
+func WithOverwriteExisting() AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.overwriteExisting = true
 	}
 }
 
-// WithCollectionName sets the collectionName field for the vectorStore.
-func WithCollectionName(collectionName string) VectoreStoresOption {
-	return func(vs *vectorStore) {
-		vs.collectionName = collectionName
+// ApplyAlloyDBVectorStoreOptions applies the given VectorStore options to the
+// VectorStore with an alloydb Engine.
+func ApplyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
+	// Check for required values.
+	if engine.Pool == nil {
+		return VectorStore{}, errors.New("missing vector store engine")
 	}
-}
+	if embedder == nil {
+		return VectorStore{}, errors.New("missing vector store embeder")
+	}
+	if tableName == "" {
+		return VectorStore{}, errors.New("missing vector store table name")
+	}
+	vs := &VectorStore{
+		engine:          engine,
+		embedder:        embedder,
+		tableName:       tableName,
+		idColumn:        defaultIDColumn,
+		contentColumn:   defaultContentColumn,
+		embeddingColumn: defaultEmbeddingColumn,
+		metadataColumns: []string{}, // TODO :: confirm this initialization is needed.
 
-// ApplyVectorStoreOptions applies the given vectorStore options to the vectorStore.
-func ApplyVectorStoreOptions(opts ...VectoreStoresOption) (vectorStore, error) {
-	vs := &vectorStore{
-		collectionName:      defaultCollectionName,
-		embeddingTableName:  defaultEmbeddingStoreTableName,
-		collectionTableName: defaultCollectionStoreTableName,
 	}
 	for _, opt := range opts {
 		opt(vs)
 	}
-	if vs.engine.pool == nil {
-		return vectorStore{}, errors.New("missing vector store engine")
-	}
-	if vs.embedder == nil {
-		return vectorStore{}, errors.New("missing vector store embeder")
-	}
+
 	return *vs, nil
+}
+
+func applyOpts(options ...vectorstores.Option) (vectorstores.Options, error) {
+	opts := vectorstores.Options{}
+	for _, opt := range options {
+		opt(&opts)
+	}
+
+	// TODO :: add default threshold value and check vaules for it
+	/* TODO :: Add correct checks
+	 	if opts.NameSpace != "" {
+		vs.collectionName = opts.NameSpace
+	}
+			if opts.ScoreThreshold != 0 || opts.Filters != nil || opts.NameSpace != "" {
+		return nil, errors.New("vector store unsupported options")
+	}
+	*/
+	return opts, nil
 }

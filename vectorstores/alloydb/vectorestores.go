@@ -7,111 +7,16 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/pgvector/pgvector-go"
+	"github.com/jackc/pgx"
 	"github.com/tmc/langchaingo/embeddings"
+	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
 )
 
-type vectorStore struct {
-	engine              PostgresEngine
-	embedder            embeddings.Embedder
-	collectionName      string
-	embeddingTableName  string
-	collectionTableName string
-	collectionUUID      string
-}
-
-var _ vectorstores.VectorStore = &vectorStore{}
-
-// NewVectorStore creates a new Store with options.
-func NewVectorStore(ctx context.Context, opts ...VectoreStoresOption) (vectorStore, error) {
-	vs, err := ApplyVectorStoreOptions(opts...)
-	if err != nil {
-		return vectorStore{}, err
-	}
-	return vs, nil
-}
-
-// AddDocuments adds documents to the Postgres collection,
-// and returns the ids of the added documents.
-func (vs *vectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) {
-	opts := vectorstores.Options{}
-	if opts.ScoreThreshold != 0 || opts.Filters != nil || opts.NameSpace != "" {
-		return nil, errors.New("vector store unsupported options")
-	}
-
-	docs = deduplicate(ctx, opts, docs)
-
-	texts := make([]string, 0, len(docs))
-	for _, doc := range docs {
-		texts = append(texts, doc.PageContent)
-	}
-
-	embedder := vs.embedder
-	if opts.Embedder != nil {
-		embedder = opts.Embedder
-	}
-
-	vectors, err := embedder.EmbedDocuments(ctx, texts)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(vectors) != len(docs) {
-		return nil, errors.New("number of vectors from embedder does not match number of documents")
-	}
-
-	b := &pgx.Batch{}
-	sql := fmt.Sprintf(`INSERT INTO %s (uuid, document, embedding, cmetadata, collection_id)
-	VALUES($1, $2, $3, $4, $5)`, vs.embeddingTableName)
-
-	ids := make([]string, len(docs))
-	for docIdx, doc := range docs {
-		id := uuid.New().String()
-		ids[docIdx] = id
-		b.Queue(sql, id, doc.PageContent, pgvector.NewVector(vectors[docIdx]), doc.Metadata, vs.collectionUUID)
-	}
-	return ids, vs.engine.pool.SendBatch(ctx, b).Close()
-}
-
-// SimilaritySearch performs a similarity search on the database using the
-// query vector.
-func (vs *vectorStore) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...vectorstores.Option) ([]schema.Document, error) {
-	opts := getOptions(options...)
-	if opts.NameSpace != "" {
-		vs.collectionName = opts.NameSpace
-	}
-	scoreThreshold, err := validateScoreThreshold(opts.ScoreThreshold)
-	if err != nil {
-		return nil, err
-	}
-	filter, err := getFilters(opts)
-	if err != nil {
-		return nil, err
-	}
-	embedder := vs.embedder
-	if opts.Embedder != nil {
-		embedder = opts.Embedder
-	}
-	embedderData, err := embedder.EmbedQuery(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	whereQuerys := make([]string, 0)
-	if scoreThreshold != 0 {
-		whereQuerys = append(whereQuerys, fmt.Sprintf("data.distance < %f", 1-scoreThreshold))
-	}
-	for k, v := range filter {
-		whereQuerys = append(whereQuerys, fmt.Sprintf("(data.cmetadata ->> '%s') = '%s'", k, v))
-	}
-	whereQuery := strings.Join(whereQuerys, " AND ")
-	if len(whereQuery) == 0 {
-		whereQuery = "TRUE"
-	}
-	dims := len(embedderData)
-	sql := fmt.Sprintf(`WITH filtered_embedding_dims AS MATERIALIZED (
+const (
+	defaultIndexNameSuffix = "langchainvectorindex"
+	similaritySearchQuery  = `WITH filtered_embedding_dims AS MATERIALIZED (
     SELECT
         *
     FROM
@@ -122,46 +27,157 @@ func (vs *vectorStore) SimilaritySearch(ctx context.Context, query string, numDo
         ) = $1
 )
 SELECT
-	data.document,
-	data.cmetadata,
-	(1 - data.distance) AS score
+    data.document,
+    data.cmetadata,
+    (1 - data.distance) AS score
 FROM (
-	SELECT
-		filtered_embedding_dims.*,
-		embedding <=> $2 AS distance
-	FROM
-		filtered_embedding_dims
-		JOIN %s ON filtered_embedding_dims.collection_id=%s.uuid WHERE %s.name='%s') AS data
+    SELECT
+        filtered_embedding_dims.*,
+        embedding <=> $2 AS distance
+    FROM
+        filtered_embedding_dims
+    JOIN %s ON filtered_embedding_dims.collection_id=%s.uuid
+    WHERE %s.name='%s') AS data
 WHERE %s
 ORDER BY
-	data.distance
-LIMIT $3`, vs.embeddingTableName,
-		vs.collectionTableName, vs.collectionTableName, vs.collectionTableName, vs.collectionName,
-		whereQuery)
+    data.distance
+LIMIT $3`
+)
 
-	rows, err := vs.engine.pool.Query(ctx, sql, dims, pgvector.NewVector(embedderData), numDocuments)
+type VectorStore struct {
+	engine            alloydbutil.PostgresEngine
+	embedder          embeddings.Embedder
+	tableName         string
+	idColumn          string // TODO :: Confirm this
+	contentColumn     string
+	embeddingColumn   string
+	metadataColumns   []string
+	overwriteExisting bool
+	indexQueryOptions []QueryOptions
+}
+
+var _ vectorstores.VectorStore = &VectorStore{}
+
+func ToString([]QueryOptions) ([]string, error) {
+	// Fihish this
+	return []string{}, nil
+}
+
+// NewVectorStore creates a new VectorStore with options.
+func NewVectorStore(ctx context.Context, engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
+	vs, err := ApplyAlloyDBVectorStoreOptions(engine, embedder, tableName, opts...)
+	if err != nil {
+		return VectorStore{}, err
+	}
+	return vs, nil
+}
+
+// AddDocuments adds documents to the Postgres collection,
+// and returns the ids of the added documents.
+func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) {
+	docContents := []string{}
+	docMetadatas := []map[string]any{}
+	for _, docs := range docs {
+		docContents = append(docContents, docs.PageContent)
+		docMetadatas = append(docMetadatas, docs.Metadata)
+	}
+	embeddings, err := vs.embedder.EmbedDocuments(ctx, docContents)
+	if err != nil {
+		return nil, fmt.Errorf("failed embed documents: %w", err)
+	}
+
+	ids := make([]string, len(docContents))
+	for i := range docContents {
+		ids[i] = uuid.New().String()
+	}
+
+	// If metadatas are not provided, initialize with empty maps
+	if len(docMetadatas) == 0 {
+		docMetadatas = make([]map[string]interface{}, len(docContents))
+		for i := range docContents {
+			docMetadatas[i] = make(map[string]interface{})
+		}
+	}
+
+	b := &pgx.Batch{}
+
+	for i := range docContents {
+		id := ids[i]
+		content := docContents[i]
+		embedding := embeddings[i]
+		metadata := docMetadatas[i]
+
+		// Construct metadata column names if present // TODO :: Check this, what is it doing?
+		metadataColNames := ""
+		if len(vs.metadataColumns) > 0 {
+			metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
+		}
+
+		insertStmt := fmt.Sprintf(`INSERT INTO "%s" (%s, %s, %s%s)`, // TODO :: Isnt schema name needed?
+			vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
+		valuesStmt := "VALUES ($1, $2, $3"
+		values := []interface{}{id, content, embedding}
+
+		for _, metadataColumn := range vs.metadataColumns {
+			if val, ok := metadata[metadataColumn]; ok {
+				valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
+				values = append(values, val)
+				delete(metadata, metadataColumn)
+			} else {
+				valuesStmt += ", NULL"
+			}
+		}
+		// TODO :: is adding JSON column and/or close statement needed?
+		valuesStmt += ")"
+		query := insertStmt + valuesStmt
+		b.Queue(query, values...)
+	}
+	return ids, vs.engine.Pool.SendBatch(ctx, b).Close()
+}
+
+// SimilaritySearch performs a similarity search on the database using the
+// query vector.
+func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...vectorstores.Option) ([]schema.Document, error) {
+	opts, err := applyOpts(options...) // TODO :: Is this needed?
+	if err != nil {
+		return nil, err
+	}
+	embedding, err := vs.embedder.EmbedQuery(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed add documents: %w", err)
+	}
+
+	thresholdQuery := "SELECT * FROM documents WHERE similarity_function($1, embedding) > 0.5" // Placeholder query
+	rows, err := vs.engine.Pool.Query(ctx, query, embedding)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	docs := make([]schema.Document, 0)
+	var result []schema.Document
 	for rows.Next() {
-		doc := schema.Document{}
-		if err := rows.Scan(&doc.PageContent, &doc.Metadata, &doc.Score); err != nil {
+		var doc schema.Document
+		var score float32
+		err := rows.Scan(&doc.PageContent, &score)
+		if err != nil {
 			return nil, err
 		}
-		docs = append(docs, doc)
-	}
-	return docs, rows.Err()
-}
 
-func getOptions(options ...vectorstores.Option) vectorstores.Options {
-	opts := vectorstores.Options{}
-	for _, opt := range options {
-		opt(&opts)
+		metadata := map[string]any{}
+		for _, col := range vs.metadataColumns {
+			// TODO :: What should it be added here
+			metadata[col] = "sample metadata"
+		}
+
+		doc.Metadata = metadata
+		result = append(result, DocumentScore{
+			Document: doc,
+			Score:    score,
+		})
 	}
-	return opts
+
+	return result, nil
+	return docs, rows.Err()
 }
 
 func validateScoreThreshold(scoreThreshold float32) (float32, error) {
@@ -183,25 +199,12 @@ func getFilters(opts vectorstores.Options) (map[string]any, error) {
 	return map[string]any{}, nil
 }
 
-func deduplicate(ctx context.Context, opts vectorstores.Options, docs []schema.Document) []schema.Document {
-	if opts.Deduplicater == nil {
-		return docs
-	}
-	filtered := make([]schema.Document, 0, len(docs))
-	for _, doc := range docs {
-		if !opts.Deduplicater(ctx, doc) {
-			filtered = append(filtered, doc)
-		}
-	}
-	return filtered
-}
-
 // TODO :: Modify queries!
-func (vs *vectorStore) ApplyVectorIndex(ctx context.Context) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string) error {
 	query := fmt.Sprintf(`
         CREATE INDEX IF NOT EXISTS <changeTableName> ON <changeTableName>;`)
 
-	_, err := vs.engine.pool.Exec(ctx, query)
+	_, err := vs.engine.Pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to apply vector index: %w", err)
 	}
@@ -209,11 +212,11 @@ func (vs *vectorStore) ApplyVectorIndex(ctx context.Context) error {
 	return nil
 }
 
-func (vs *vectorStore) ReIndex(ctx context.Context) error {
+func (vs *VectorStore) ReIndex(ctx context.Context) error {
 	query := fmt.Sprintf(`
         REINDEX INDEX <changeTableName>;`)
 
-	_, err := vs.engine.pool.Exec(ctx, query)
+	_, err := vs.engine.Pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to reindex: %w", err)
 	}
@@ -221,11 +224,11 @@ func (vs *vectorStore) ReIndex(ctx context.Context) error {
 	return nil
 }
 
-func (vs *vectorStore) DropVectorIndex(ctx context.Context) error {
+func (vs *VectorStore) DropVectorIndex(ctx context.Context) error {
 	query := fmt.Sprintf(`
         DROP INDEX IF EXISTS <changeTableName>;`)
 
-	_, err := vs.engine.pool.Exec(ctx, query)
+	_, err := vs.engine.Pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to drop vector index: %w", err)
 	}
@@ -233,11 +236,11 @@ func (vs *vectorStore) DropVectorIndex(ctx context.Context) error {
 	return nil
 }
 
-func (vs *vectorStore) IsValidIndex(ctx context.Context) (bool, error) {
+func (vs *VectorStore) IsValidIndex(ctx context.Context) (bool, error) {
 	query := fmt.Sprintf(` SELECT COUNT(*) FROM pg_indexes WHERE tablename = $1 AND indexname = $2; `)
 
 	var count int
-	err := vs.engine.pool.QueryRow(ctx, query, "<changeTableName>", "<changeIndexName>`").Scan(&count)
+	err := vs.engine.Pool.QueryRow(ctx, query, "<changeTableName>", "<changeIndexName>`").Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("failed to check validate index: %w", err)
 	}

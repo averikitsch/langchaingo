@@ -1,4 +1,4 @@
-package alloydb
+package alloydbutil
 
 import (
 	"context"
@@ -19,9 +19,9 @@ type engineConfig struct {
 	database        string
 	user            string
 	password        string
-	usePrivateIP    bool
-	iAmAccountEmail string
-	emailRetreiver  EmailRetreiver
+	ipType          string
+	iamAccountEmail string
+	emailRetreiver  EmailRetriever
 }
 
 // WithAlloyDBInstance sets the project, region, cluster, and instance fields.
@@ -62,17 +62,18 @@ func WithPassword(password string) Option {
 	}
 }
 
-// WithPrivateIP sets the PrivateIP field.
-func WithPrivateIP(isPrivateIP bool) Option {
+// WithIPType sets the IpType field.
+func WithIPType(ipType string) Option {
 	return func(p *engineConfig) {
-		p.usePrivateIP = isPrivateIP
+		p.ipType = ipType
 	}
 }
 
-// WithIAMAccountEmail sets the IAMAccountEmail field.
-func WithIAMAccountEmail(email string) Option {
+// WithIamAccountEmail sets the WithIamAccountEmail field.
+func WithIamAccountEmail(email string) Option {
 	return func(p *engineConfig) {
-		p.iAmAccountEmail = email
+		p.iamAccountEmail = email
+
 	}
 }
 
@@ -86,7 +87,7 @@ func withServiceAccountRetriever(emailRetriever func(context.Context) (string, e
 func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
-		usePrivateIP:   false,
+		ipType:         "PUBLIC",
 	}
 	for _, opt := range opts {
 		opt(cfg)
