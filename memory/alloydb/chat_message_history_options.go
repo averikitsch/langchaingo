@@ -14,13 +14,6 @@ const (
 // history with other than the default values.
 type ChatMessageHistoryStoresOption func(c *ChatMessageHistory)
 
-// WithSessionID sets the sessionID field for the ChatMessageHistory.
-func WithSessionID(sessionID string) ChatMessageHistoryStoresOption {
-	return func(c *ChatMessageHistory) {
-		c.sessionID = sessionID
-	}
-}
-
 // WithSchemaName sets the schemaName field for the ChatMessageHistory.
 func WithSchemaName(schemaName string) ChatMessageHistoryStoresOption {
 	return func(c *ChatMessageHistory) {
@@ -36,9 +29,9 @@ func WithOverwrite() ChatMessageHistoryStoresOption {
 	}
 }
 
-// ApplyChatMessageHistoryOptions applies the given options to the
+// applyChatMessageHistoryOptions applies the given options to the
 // ChatMessageHistory.
-func ApplyChatMessageHistoryOptions(engine alloydbutil.PostgresEngine, tableName string, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
+func applyChatMessageHistoryOptions(engine alloydbutil.PostgresEngine, tableName string, sessionID string, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return ChatMessageHistory{}, errors.New("missing chat message history engine")
@@ -46,18 +39,18 @@ func ApplyChatMessageHistoryOptions(engine alloydbutil.PostgresEngine, tableName
 	if tableName == "" {
 		return ChatMessageHistory{}, errors.New("table name must be provided")
 	}
-
+	if sessionID == "" {
+		return ChatMessageHistory{}, errors.New("session ID must be provided")
+	}
 	cmh := &ChatMessageHistory{
 		engine:     engine,
 		tableName:  tableName,
+		sessionID:  sessionID,
 		schemaName: defaultSchemaName,
 	}
 	// Check for optional values.
 	for _, opt := range opts {
 		opt(cmh)
-	}
-	if cmh.sessionID == "" {
-		return ChatMessageHistory{}, errors.New("session ID must be provided")
 	}
 	return *cmh, nil
 }

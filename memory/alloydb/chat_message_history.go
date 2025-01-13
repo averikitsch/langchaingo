@@ -19,11 +19,11 @@ type ChatMessageHistory struct {
 	overwrite  bool
 }
 
-var _ schema.ChatMessageHistory = &ChatMessageHistory{}
+var _ schema.ChatMessageHistory = &ChatMessageHistory{} // TODO :: Satisfy the interface
 
 // NewChatMessageHistory creates a new NewChatMessageHistory with options.
-func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngine, tableName string, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
-	cmh, err := ApplyChatMessageHistoryOptions(engine, tableName, opts...)
+func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngine, tableName string, sessionID string, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
+	cmh, err := applyChatMessageHistoryOptions(engine, tableName, sessionID, opts...)
 	if err != nil {
 		return ChatMessageHistory{}, err
 	}
@@ -39,7 +39,7 @@ func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngin
 func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	tableExistsQuery := fmt.Sprintf(`SELECT EXISTS (
 		SELECT FROM information_schema.tables 
-		WHERE table_schema = '%s' AND table_name = '%s');`, // TODO :: Are table/schema names which require case-sensitive?
+		WHERE table_schema = '%s' AND table_name = '%s');`,
 		c.schemaName, c.tableName)
 	var exists bool
 	err := c.engine.Pool.QueryRow(ctx, tableExistsQuery).Scan(&exists)
@@ -50,7 +50,7 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 		return fmt.Errorf("table '%s' does not exist in schema '%s'", c.tableName, c.schemaName)
 	}
 
-	requiredColumns := []string{"id", "session_id", "data", "type"} // TODO :: Should the field be data or content?
+	requiredColumns := []string{"id", "session_id", "data", "type"}
 	for _, reqColumn := range requiredColumns {
 		columnExistsQuery := fmt.Sprintf(`SELECT EXISTS (
 			SELECT 1 FROM information_schema.columns 
@@ -68,49 +68,52 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	return nil
 }
 
-// addMessage inserts a new message into AlloyDB.
-func (c *ChatMessageHistory) addMessage(_ context.Context, content string, messageType llms.ChatMessageType) error {
+// addMessage adds a new message into the ChatMessageHistory for a given
+// session.
+func (c *ChatMessageHistory) addMessage(ctx context.Context, content string, messageType llms.ChatMessageType) error {
 	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`,
 		c.schemaName, c.tableName)
 
-	_, err := c.engine.Pool.Exec(context.Background(), query, c.sessionID, content, messageType)
+	_, err := c.engine.Pool.Exec(ctx, query, c.sessionID, content, messageType)
 	if err != nil {
 		return fmt.Errorf("failed to add message to database: %w", err)
 	}
 	return nil
 }
 
-// AddMessage adds a message to the chat message history.
+// AddMessage adds a message to the ChatMessageHistory.
 func (c *ChatMessageHistory) AddMessage(ctx context.Context, message llms.ChatMessage) error {
 	return c.addMessage(ctx, message.GetContent(), message.GetType())
 }
 
-// AddAIMessage adds an AIMessage to the chat message history.
+// AddAIMessage adds an AI-generated message to the ChatMessageHistory.
 func (c *ChatMessageHistory) AddAIMessage(ctx context.Context, content string) error {
 	return c.addMessage(ctx, content, llms.ChatMessageTypeAI)
 }
 
-// AddUserMessage adds a user to the chat message history.
+// AddUserMessage adds a user-generated message to the ChatMessageHistory.
 func (c *ChatMessageHistory) AddUserMessage(ctx context.Context, content string) error {
 	return c.addMessage(ctx, content, llms.ChatMessageTypeHuman)
 }
 
-// Clear resets messages.
-func (c *ChatMessageHistory) Clear(_ context.Context) error {
+// Clear removes all messages associated with a session from the
+// ChatMessageHistory.
+func (c *ChatMessageHistory) Clear(ctx context.Context) error {
 	if !c.overwrite {
 		return nil
 	}
 	query := fmt.Sprintf(`DELETE FROM "%s"."%s" WHERE session_id = $1`,
 		c.schemaName, c.tableName)
 
-	_, err := c.engine.Pool.Exec(context.Background(), query, c.sessionID)
+	_, err := c.engine.Pool.Exec(ctx, query, c.sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to clear session %s: %w", c.sessionID, err)
 	}
 	return err
 }
 
-// AddMessages inserts new messages into AlloyDB.
+// AddMessages adds multiple messages to the ChatMessageHistory for a given
+// session.
 func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.ChatMessage) error {
 	b := &pgx.Batch{}
 	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`,
@@ -122,18 +125,19 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 	return c.engine.Pool.SendBatch(ctx, b).Close()
 }
 
-// Messages returns all messages for a given session_id from AlloyDB.
-func (c *ChatMessageHistory) Messages(_ context.Context) ([]llms.ChatMessage, error) {
+// Messages retrieves all messages associated with a session from the
+// ChatMessageHistory.
+func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessageModelData, error) {
 	query := fmt.Sprintf(`SELECT id, session_id, data, type, timestamp FROM "%s"."%s" WHERE session_id = $1 ORDER BY id`,
 		c.schemaName, c.tableName)
 
-	rows, err := c.engine.Pool.Query(context.Background(), query, c.sessionID)
+	rows, err := c.engine.Pool.Query(ctx, query, c.sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve messages: %w", err)
 	}
 	defer rows.Close()
 
-	var messages []llms.ChatMessage
+	var messages []llms.ChatMessageModelData
 	for rows.Next() {
 		var id int
 		var sessionID, data, messageType string
@@ -141,25 +145,24 @@ func (c *ChatMessageHistory) Messages(_ context.Context) ([]llms.ChatMessage, er
 		if err := rows.Scan(&id, &sessionID, &data, &messageType, &timestamp); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		switch messageType {
-		case string(llms.ChatMessageTypeAI):
-			messages = append(messages, llms.AIChatMessage{Content: data}) // TODO :: Should types be added here too?
-		case string(llms.ChatMessageTypeHuman):
-			messages = append(messages, llms.HumanChatMessage{Content: data})
-		case string(llms.ChatMessageTypeSystem):
-			messages = append(messages, llms.SystemChatMessage{Content: data})
-		default:
+		if messageType == string(llms.ChatMessageTypeAI) ||
+			messageType == string(llms.ChatMessageTypeHuman) ||
+			messageType == string(llms.ChatMessageTypeSystem) {
+			messages = append(messages, llms.ChatMessageModelData{Content: data, Type: messageType})
+		} else {
+			return nil, fmt.Errorf("unsupported message type: %s", messageType)
 		}
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to iterate over rows: %w", err)
 	}
 
 	return messages, nil
 }
 
-// SetMessages resets chat history and bulk insert new messages into it.
+// SetMessages clears the current messages from the ChatMessageHistory for a
+// given session and then adds new messages to it.
 func (c *ChatMessageHistory) SetMessages(ctx context.Context, messages []llms.ChatMessage) error {
 	if !c.overwrite {
 		return nil
