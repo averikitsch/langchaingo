@@ -19,7 +19,7 @@ type ChatMessageHistory struct {
 	overwrite  bool
 }
 
-var _ schema.ChatMessageHistory = &ChatMessageHistory{} // TODO :: Satisfy the interface
+var _ schema.ChatMessageHistory = &ChatMessageHistory{}
 
 // NewChatMessageHistory creates a new NewChatMessageHistory with options.
 func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngine, tableName string, sessionID string, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
@@ -127,7 +127,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 
 // Messages retrieves all messages associated with a session from the
 // ChatMessageHistory.
-func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessageModelData, error) {
+func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
 	query := fmt.Sprintf(`SELECT id, session_id, data, type, timestamp FROM "%s"."%s" WHERE session_id = $1 ORDER BY id`,
 		c.schemaName, c.tableName)
 
@@ -137,7 +137,7 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessageMo
 	}
 	defer rows.Close()
 
-	var messages []llms.ChatMessageModelData
+	var messages []llms.ChatMessage
 	for rows.Next() {
 		var id int
 		var sessionID, data, messageType string
@@ -145,11 +145,14 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessageMo
 		if err := rows.Scan(&id, &sessionID, &data, &messageType, &timestamp); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		if messageType == string(llms.ChatMessageTypeAI) ||
-			messageType == string(llms.ChatMessageTypeHuman) ||
-			messageType == string(llms.ChatMessageTypeSystem) {
-			messages = append(messages, llms.ChatMessageModelData{Content: data, Type: messageType})
-		} else {
+		switch messageType {
+		case string(llms.ChatMessageTypeAI):
+			messages = append(messages, llms.AIChatMessage{Content: data})
+		case string(llms.ChatMessageTypeHuman):
+			messages = append(messages, llms.HumanChatMessage{Content: data})
+		case string(llms.ChatMessageTypeSystem):
+			messages = append(messages, llms.SystemChatMessage{Content: data})
+		default:
 			return nil, fmt.Errorf("unsupported message type: %s", messageType)
 		}
 	}
