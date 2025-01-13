@@ -20,8 +20,8 @@ type engineConfig struct {
 	user            string
 	password        string
 	ipType          string
-	iAmAccountEmail string
-	emailRetreiver  EmailRetreiver
+	iamAccountEmail string
+	emailRetreiver  EmailRetriever
 }
 
 // WithAlloyDBInstance sets the project, region, cluster, and instance fields.
@@ -69,10 +69,11 @@ func WithIPType(ipType string) Option {
 	}
 }
 
-// WithIAMAccountEmail sets the IAMAccountEmail field.
+// WithIAMAccountEmail sets the WithIAMAccountEmail field.
 func WithIAMAccountEmail(email string) Option {
 	return func(p *engineConfig) {
-		p.iAmAccountEmail = email
+		p.iamAccountEmail = email
+
 	}
 }
 

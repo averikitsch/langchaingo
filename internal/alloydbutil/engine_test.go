@@ -11,12 +11,12 @@ func TestGetUser(t *testing.T) {
 
 	testServiceAccount := "test-service-account-email@test.com"
 	// Mock EmailRetriever function for testing
-	var mockEmailRetrevier = func(ctx context.Context) (string, error) {
+	var mockEmailRetriever = func(ctx context.Context) (string, error) {
 		return testServiceAccount, nil
 	}
 
 	// A failing mock function for testing
-	var mockFailingEmailRetrevier = func(ctx context.Context) (string, error) {
+	var mockFailingEmailRetriever = func(ctx context.Context) (string, error) {
 		return "", errors.New("missing or invalid credentials")
 	}
 
@@ -25,19 +25,26 @@ func TestGetUser(t *testing.T) {
 		engineConfig     engineConfig
 		expectedErr      string
 		expectedUserName string
-		expectedIamAuth  bool
+		expectedIAMAuth  bool
 	}{
 		{
 			name:             "User and Password provided",
 			engineConfig:     engineConfig{user: "testUser", password: "testPass"},
 			expectedUserName: "testUser",
-			expectedIamAuth:  false,
+			expectedIAMAuth:  false,
 		},
 		{
-			name:             "Neither User nor Password, but service account email retrieved",
-			engineConfig:     engineConfig{emailRetreiver: mockEmailRetrevier},
+			name:             "IAM account email provided",
+			engineConfig:     engineConfig{iamAccountEmail: testServiceAccount},
 			expectedUserName: testServiceAccount,
-			expectedIamAuth:  true,
+			expectedIAMAuth:  true,
+		},
+		{
+			name:         "Getting IAM account email from the env",
+			engineConfig: engineConfig{emailRetreiver: mockEmailRetriever},
+
+			expectedUserName: testServiceAccount,
+			expectedIAMAuth:  true,
 		},
 		{
 			name:         "Error - User provided but Password missing",
@@ -51,7 +58,7 @@ func TestGetUser(t *testing.T) {
 		},
 		{
 			name:         "Error - Failure retrieving service account email",
-			engineConfig: engineConfig{emailRetreiver: mockFailingEmailRetrevier},
+			engineConfig: engineConfig{emailRetreiver: mockFailingEmailRetriever},
 			expectedErr:  "unable to retrieve service account email: missing or invalid credentials",
 		},
 	}
@@ -59,7 +66,7 @@ func TestGetUser(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			username, usingIAMAuth, err := getUser(context.Background(), tc.engineConfig)
+			user, usingIAMAuth, err := getUser(context.Background(), tc.engineConfig)
 
 			// Check if the error matches the expected error
 			if err != nil && err.Error() != tc.expectedErr {
@@ -69,13 +76,13 @@ func TestGetUser(t *testing.T) {
 			if tc.expectedErr != "" {
 				return
 			}
-			// Validate if the username matches the expected username
-			if username != tc.expectedUserName {
-				t.Errorf("expected user %s, got %s", tc.expectedUserName, tc.engineConfig.user)
+			// Validate if the user matches is the one expected
+			if user != tc.expectedUserName {
+				t.Errorf("expected user %s, got %s", tc.expectedUserName, user)
 			}
-			// Validate if IamAuth was expected
-			if usingIAMAuth != tc.expectedIamAuth {
-				t.Errorf("expected user %s, got %s", tc.expectedUserName, tc.engineConfig.user)
+			// Validate if IAMAuth was expected
+			if usingIAMAuth != tc.expectedIAMAuth {
+				t.Errorf("expected usingIAMAuth %t, got %t", tc.expectedIAMAuth, usingIAMAuth)
 			}
 		})
 	}
