@@ -1,4 +1,4 @@
-package alloydbutil
+package cloudsqlutil
 
 import (
 	"context"
@@ -11,13 +11,12 @@ func TestGetUser(t *testing.T) {
 
 	testServiceAccount := "test-service-account-email@test.com"
 	// Mock EmailRetriever function for testing
-	var mockEmailRetriever = func(ctx context.Context) (string, error) {
+	var mockEmailRetrevier = func(ctx context.Context) (string, error) {
 		return testServiceAccount, nil
 	}
 
 	// A failing mock function for testing
-	var mockFailingEmailRetriever = func(ctx context.Context) (string, error) {
-
+	var mockFailingEmailRetrevier = func(ctx context.Context) (string, error) {
 		return "", errors.New("missing or invalid credentials")
 	}
 
@@ -26,27 +25,19 @@ func TestGetUser(t *testing.T) {
 		engineConfig     engineConfig
 		expectedErr      string
 		expectedUserName string
-		expectedIAMAuth  bool
-
+		expectedIamAuth  bool
 	}{
 		{
 			name:             "User and Password provided",
 			engineConfig:     engineConfig{user: "testUser", password: "testPass"},
 			expectedUserName: "testUser",
-			expectedIAMAuth:  false,
+			expectedIamAuth:  false,
 		},
 		{
-			name:             "IAM account email provided",
-			engineConfig:     engineConfig{iamAccountEmail: testServiceAccount},
+			name:             "Neither User nor Password, but service account email retrieved",
+			engineConfig:     engineConfig{emailRetreiver: mockEmailRetrevier},
 			expectedUserName: testServiceAccount,
-			expectedIAMAuth:  true,
-		},
-		{
-			name:         "Getting IAM account email from the env",
-			engineConfig: engineConfig{emailRetreiver: mockEmailRetriever},
-
-			expectedUserName: testServiceAccount,
-			expectedIAMAuth:  true,
+			expectedIamAuth:  true,
 		},
 		{
 			name:         "Error - User provided but Password missing",
@@ -60,7 +51,7 @@ func TestGetUser(t *testing.T) {
 		},
 		{
 			name:         "Error - Failure retrieving service account email",
-			engineConfig: engineConfig{emailRetreiver: mockFailingEmailRetriever},
+			engineConfig: engineConfig{emailRetreiver: mockFailingEmailRetrevier},
 			expectedErr:  "unable to retrieve service account email: missing or invalid credentials",
 		},
 	}
@@ -68,7 +59,7 @@ func TestGetUser(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			user, usingIAMAuth, err := getUser(context.Background(), tc.engineConfig)
+			username, usingIAMAuth, err := getUser(context.Background(), tc.engineConfig)
 
 			// Check if the error matches the expected error
 			if err != nil && err.Error() != tc.expectedErr {
@@ -78,13 +69,13 @@ func TestGetUser(t *testing.T) {
 			if tc.expectedErr != "" {
 				return
 			}
-			// Validate if the user matches is the one expected
-			if user != tc.expectedUserName {
-				t.Errorf("expected user %s, got %s", tc.expectedUserName, user)
+			// Validate if the username matches the expected username
+			if username != tc.expectedUserName {
+				t.Errorf("expected user %s, got %s", tc.expectedUserName, tc.engineConfig.user)
 			}
-			// Validate if IAMAuth was expected
-			if usingIAMAuth != tc.expectedIAMAuth {
-				t.Errorf("expected usingIAMAuth %t, got %t", tc.expectedIAMAuth, usingIAMAuth)
+			// Validate if IamAuth was expected
+			if usingIAMAuth != tc.expectedIamAuth {
+				t.Errorf("expected user %s, got %s", tc.expectedUserName, tc.engineConfig.user)
 			}
 		})
 	}

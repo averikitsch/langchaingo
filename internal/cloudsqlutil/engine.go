@@ -1,31 +1,31 @@
-package alloydbutil
+package cloudsqlutil
 
 import (
+	"cloud.google.com/go/cloudsqlconn"
 	"context"
 	"errors"
 	"fmt"
-	"net"
-
-	"cloud.google.com/go/alloydbconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
+	"net"
 )
 
-type EmailRetriever func(context.Context) (string, error)
+type EmailRetriever func(ctx context.Context) (string, error)
 
 type PostgresEngine struct {
 	Pool *pgxpool.Pool
 }
 
-// NewPostgresEngine creates a new PostgresEngine.
+// NewPostgresEngine creates a new PostgresEngine
 func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
 	if err != nil {
 		return nil, err
 	}
+
 	user, usingIAMAuth, err := getUser(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error assigning user. Err: %w", err)
@@ -33,9 +33,9 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 	if usingIAMAuth {
 		cfg.user = user
 	}
+
 	if cfg.connPool == nil {
-		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
-		if err != nil {
+		if cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth); err != nil {
 			return &PostgresEngine{}, err
 		}
 	}
@@ -45,13 +45,14 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 
 // createPool creates a connection pool to the PostgreSQL database.
 func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
-	dialeropts := []alloydbconn.Option{}
+	var dialerOpts []cloudsqlconn.Option
 	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
 	if usingIAMAuth {
-		dialeropts = append(dialeropts, alloydbconn.WithIAMAuthN())
+		dialerOpts = append(dialerOpts, cloudsqlconn.WithIAMAuthN())
 		dsn = fmt.Sprintf("user=%s dbname=%s sslmode=disable", cfg.user, cfg.database)
 	}
-	d, err := alloydbconn.NewDialer(ctx, dialeropts...)
+
+	d, err := cloudsqlconn.NewDialer(ctx, dialerOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize connection: %w", err)
 	}
@@ -60,12 +61,13 @@ func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxp
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection config: %w", err)
 	}
-	instanceURI := fmt.Sprintf("projects/%s/locations/%s/clusters/%s/instances/%s", cfg.projectID, cfg.region, cfg.cluster, cfg.instance)
+
+	instanceURI := fmt.Sprintf("%s:%s:%s", cfg.projectID, cfg.region, cfg.instance)
 	config.ConnConfig.DialFunc = func(ctx context.Context, _ string, _ string) (net.Conn, error) {
 		if cfg.ipType == "PRIVATE" {
-			return d.Dial(ctx, instanceURI, alloydbconn.WithPrivateIP())
+			return d.Dial(ctx, instanceURI, cloudsqlconn.WithPrivateIP())
 		}
-		return d.Dial(ctx, instanceURI, alloydbconn.WithPublicIP())
+		return d.Dial(ctx, instanceURI, cloudsqlconn.WithPublicIP())
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
@@ -74,10 +76,9 @@ func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxp
 	return pool, nil
 }
 
-// Close closes the connection.
+// Close closes the pool connection
 func (p *PostgresEngine) Close() {
 	if p.Pool != nil {
-		// Close the connection pool.
 		p.Pool.Close()
 	}
 }
@@ -85,20 +86,16 @@ func (p *PostgresEngine) Close() {
 // getUser retrieves the username, a flag indicating if IAM authentication
 // will be used and an error.
 func getUser(ctx context.Context, config engineConfig) (string, bool, error) {
-	if config.user != "" && config.password != "" {
-		// If both username and password are provided use provided username.
-		return config.user, false, nil
-	} else if config.iamAccountEmail != "" {
-		// If iamAccountEmail is provided use it as user.
-		return config.iamAccountEmail, true, nil
-	} else if config.user == "" && config.password == "" && config.iamAccountEmail == "" {
-		// If neither user and password nor iamAccountEmail are provided,
-		// retrieve IAM email from the environment.
+	// If neither user nor password are provided, retrieve IAM email.
+	if config.user == "" && config.password == "" {
 		serviceAccountEmail, err := config.emailRetreiver(ctx)
 		if err != nil {
 			return "", false, fmt.Errorf("unable to retrieve service account email: %w", err)
 		}
 		return serviceAccountEmail, true, nil
+	} else if config.user != "" && config.password != "" {
+		// If both username and password are provided use default username.
+		return config.user, false, nil
 	}
 
 	// If no user can be determined, return an error.

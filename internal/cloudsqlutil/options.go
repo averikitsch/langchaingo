@@ -1,9 +1,8 @@
-package alloydbutil
+package cloudsqlutil
 
 import (
 	"context"
 	"errors"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -13,23 +12,21 @@ type Option func(p *engineConfig)
 type engineConfig struct {
 	projectID       string
 	region          string
-	cluster         string
 	instance        string
 	connPool        *pgxpool.Pool
 	database        string
 	user            string
 	password        string
 	ipType          string
-	iamAccountEmail string
+	iAmAccountEmail string
 	emailRetreiver  EmailRetriever
 }
 
-// WithAlloyDBInstance sets the project, region, cluster, and instance fields.
-func WithAlloyDBInstance(projectID, region, cluster, instance string) Option {
+// WithCloudSQLInstance sets the project, region, cluster, and instance fields.
+func WithCloudSQLInstance(projectID, region, instance string) Option {
 	return func(p *engineConfig) {
 		p.projectID = projectID
 		p.region = region
-		p.cluster = cluster
 		p.instance = instance
 	}
 }
@@ -69,10 +66,10 @@ func WithIPType(ipType string) Option {
 	}
 }
 
-// WithIAMAccountEmail sets the WithIAMAccountEmail field.
+// WithIAMAccountEmail sets the IAMAccountEmail field.
 func WithIAMAccountEmail(email string) Option {
 	return func(p *engineConfig) {
-		p.iamAccountEmail = email
+		p.iAmAccountEmail = email
 	}
 }
 
@@ -91,7 +88,7 @@ func applyClientOptions(opts ...Option) (engineConfig, error) {
 	for _, opt := range opts {
 		opt(cfg)
 	}
-	if cfg.connPool == nil && cfg.projectID == "" && cfg.region == "" && cfg.cluster == "" && cfg.instance == "" {
+	if cfg.connPool == nil && cfg.projectID == "" && cfg.region == "" && cfg.instance == "" {
 		return engineConfig{}, errors.New("missing connection: provide a connection pool or connection fields")
 	}
 
