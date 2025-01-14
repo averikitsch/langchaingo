@@ -2,12 +2,11 @@ package alloydb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v5"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/schema"
@@ -48,7 +47,8 @@ type VectorStore struct {
 	engine            alloydbutil.PostgresEngine
 	embedder          embeddings.Embedder
 	tableName         string
-	idColumn          string // TODO :: Confirm this
+	schemaName        string //TODO:: Confirm if is this needed
+	idColumn          string // TODO :: Confirm if is this needed
 	contentColumn     string
 	embeddingColumn   string
 	metadataColumns   []string
@@ -58,14 +58,9 @@ type VectorStore struct {
 
 var _ vectorstores.VectorStore = &VectorStore{}
 
-func ToString([]QueryOptions) ([]string, error) {
-	// Fihish this
-	return []string{}, nil
-}
-
 // NewVectorStore creates a new VectorStore with options.
 func NewVectorStore(ctx context.Context, engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
-	vs, err := ApplyAlloyDBVectorStoreOptions(engine, embedder, tableName, opts...)
+	vs, err := applyAlloyDBVectorStoreOptions(engine, embedder, tableName, opts...)
 	if err != nil {
 		return VectorStore{}, err
 	}
@@ -138,85 +133,21 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 // SimilaritySearch performs a similarity search on the database using the
 // query vector.
 func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...vectorstores.Option) ([]schema.Document, error) {
-	opts, err := applyOpts(options...) // TODO :: Is this needed?
-	if err != nil {
-		return nil, err
-	}
-	embedding, err := vs.embedder.EmbedQuery(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed add documents: %w", err)
-	}
-
-	thresholdQuery := "SELECT * FROM documents WHERE similarity_function($1, embedding) > 0.5" // Placeholder query
-	rows, err := vs.engine.Pool.Query(ctx, query, embedding)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []schema.Document
-	for rows.Next() {
-		var doc schema.Document
-		var score float32
-		err := rows.Scan(&doc.PageContent, &score)
-		if err != nil {
-			return nil, err
-		}
-
-		metadata := map[string]any{}
-		for _, col := range vs.metadataColumns {
-			// TODO :: What should it be added here
-			metadata[col] = "sample metadata"
-		}
-
-		doc.Metadata = metadata
-		result = append(result, DocumentScore{
-			Document: doc,
-			Score:    score,
-		})
-	}
-
-	return result, nil
-	return docs, rows.Err()
+	/*
+		Develop this
+	}*/
+	return nil, nil
 }
 
-func validateScoreThreshold(scoreThreshold float32) (float32, error) {
-	if scoreThreshold < 0 || scoreThreshold > 1 {
-		return 0, errors.New("score threshold must be between 0 and 1")
+// Develop ApplyVectorIndex
+
+// ReIndex re-indexes the VectorStore.
+func (vs *VectorStore) ReIndex(ctx context.Context, indexName string) error {
+	if indexName == "" {
+		indexName = vs.tableName + defaultIndexNameSuffix
 	}
-	return scoreThreshold, nil
-}
-
-// getFilters return metadata filters, now only support map[key]value pattern
-// TODO: should support more types like {"key1": {"key2":"values2"}} or {"key": ["value1", "values2"]}.
-func getFilters(opts vectorstores.Options) (map[string]any, error) {
-	if opts.Filters != nil {
-		if filters, ok := opts.Filters.(map[string]any); ok {
-			return filters, nil
-		}
-		return nil, errors.New("invalid filters")
-	}
-	return map[string]any{}, nil
-}
-
-// TODO :: Modify queries!
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string) error {
-	query := fmt.Sprintf(`
-        CREATE INDEX IF NOT EXISTS <changeTableName> ON <changeTableName>;`)
-
-	_, err := vs.engine.Pool.Exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to apply vector index: %w", err)
-	}
-
-	return nil
-}
-
-func (vs *VectorStore) ReIndex(ctx context.Context) error {
-	query := fmt.Sprintf(`
-        REINDEX INDEX <changeTableName>;`)
-
-	_, err := vs.engine.Pool.Exec(ctx, query)
+	query := `REINDEX INDEX $1;`
+	_, err := vs.engine.Pool.Exec(ctx, query, indexName)
 	if err != nil {
 		return fmt.Errorf("failed to reindex: %w", err)
 	}
@@ -224,11 +155,13 @@ func (vs *VectorStore) ReIndex(ctx context.Context) error {
 	return nil
 }
 
-func (vs *VectorStore) DropVectorIndex(ctx context.Context) error {
-	query := fmt.Sprintf(`
-        DROP INDEX IF EXISTS <changeTableName>;`)
-
-	_, err := vs.engine.Pool.Exec(ctx, query)
+// DropVectorIndex drops the vector index from the VectorStore.
+func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string) error {
+	if indexName == "" {
+		indexName = vs.tableName + defaultIndexNameSuffix
+	}
+	query := `DROP INDEX IF EXISTS $1;`
+	_, err := vs.engine.Pool.Exec(ctx, query, indexName)
 	if err != nil {
 		return fmt.Errorf("failed to drop vector index: %w", err)
 	}
@@ -236,14 +169,20 @@ func (vs *VectorStore) DropVectorIndex(ctx context.Context) error {
 	return nil
 }
 
-func (vs *VectorStore) IsValidIndex(ctx context.Context) (bool, error) {
-	query := fmt.Sprintf(` SELECT COUNT(*) FROM pg_indexes WHERE tablename = $1 AND indexname = $2; `)
+// IsValidIndex checks if index exists in the VectorStore.
+func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool, error) {
+	if indexName == "" {
+		indexName = vs.tableName + defaultIndexNameSuffix
+	}
+	query := `SELECT tablename, indexname 
+			  FROM pg_indexes 
+			  WHERE tablename = $1 AND schemaname = $2 AND indexname = $3;`
 
-	var count int
-	err := vs.engine.Pool.QueryRow(ctx, query, "<changeTableName>", "<changeIndexName>`").Scan(&count)
+	var tablename, indexnameFromDb string
+	err := vs.engine.Pool.QueryRow(ctx, query, vs.tableName, vs.schemaName, indexName).Scan(&tablename, &indexnameFromDb)
 	if err != nil {
-		return false, fmt.Errorf("failed to check validate index: %w", err)
+		return false, fmt.Errorf("failed to check if index exists: %w", err)
 	}
 
-	return count > 0, nil
+	return indexnameFromDb == indexName, nil
 }

@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	defaultSchemaName      = "public"
 	defaultIDColumn        = "langchain_id" // TODO :: Confirm this
 	defaultContentColumn   = "content"
 	defaultEmbeddingColumn = "embedding"
@@ -28,14 +29,21 @@ type QueryOptions interface {
 // with other than the default values.
 type AlloyDBVectoreStoresOption func(vs *VectorStore)
 
-// WithContentColumn sets the idColumn field.
+// WithSchemaName sets the VectorStore's schemaName field.
+func WithSchemaName(schemaName string) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.schemaName = schemaName
+	}
+}
+
+// WithContentColumn sets VectorStore's the idColumn field.
 func WithIDColumn(idColumn string) AlloyDBVectoreStoresOption {
 	return func(v *VectorStore) {
 		v.idColumn = idColumn
 	}
 }
 
-// WithContentColumn sets the ContentColumn field.
+// WithContentColumn sets the VectorStore's ContentColumn field.
 func WithContentColumn(contentColumn string) AlloyDBVectoreStoresOption {
 	return func(v *VectorStore) {
 		v.contentColumn = contentColumn
@@ -49,7 +57,7 @@ func WithEmbeddingColumn(embeddingColumn string) AlloyDBVectoreStoresOption {
 	}
 }
 
-// WithMetadataColumns sets the MetadataColumns field.
+// WithMetadataColumns sets the VectorStore's MetadataColumns field.
 func WithMetadataColumns(metadataColumns []string) AlloyDBVectoreStoresOption {
 	return func(v *VectorStore) {
 		v.metadataColumns = metadataColumns
@@ -64,9 +72,9 @@ func WithOverwriteExisting() AlloyDBVectoreStoresOption {
 	}
 }
 
-// ApplyAlloyDBVectorStoreOptions applies the given VectorStore options to the
+// applyAlloyDBVectorStoreOptions applies the given VectorStore options to the
 // VectorStore with an alloydb Engine.
-func ApplyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
+func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return VectorStore{}, errors.New("missing vector store engine")
