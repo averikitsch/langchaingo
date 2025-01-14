@@ -2,6 +2,7 @@ package alloydb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -71,10 +72,14 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 // addMessage adds a new message into the ChatMessageHistory for a given
 // session.
 func (c *ChatMessageHistory) addMessage(ctx context.Context, content string, messageType llms.ChatMessageType) error {
+	data, err := json.Marshal(content)
+	if err != nil {
+		return fmt.Errorf("failed to serialize content to JSON: %w", err)
+	}
 	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`,
 		c.schemaName, c.tableName)
 
-	_, err := c.engine.Pool.Exec(ctx, query, c.sessionID, content, messageType)
+	_, err = c.engine.Pool.Exec(ctx, query, c.sessionID, data, messageType)
 	if err != nil {
 		return fmt.Errorf("failed to add message to database: %w", err)
 	}
@@ -145,13 +150,22 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, 
 		if err := rows.Scan(&id, &sessionID, &data, &messageType, &timestamp); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
+
+		// Variable to hold the deserialized content
+		var content string
+
+		// Unmarshal the JSON data into the content variable
+		err := json.Unmarshal([]byte(data), &content)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
+		}
 		switch messageType {
 		case string(llms.ChatMessageTypeAI):
-			messages = append(messages, llms.AIChatMessage{Content: data})
+			messages = append(messages, llms.AIChatMessage{Content: content})
 		case string(llms.ChatMessageTypeHuman):
-			messages = append(messages, llms.HumanChatMessage{Content: data})
+			messages = append(messages, llms.HumanChatMessage{Content: content})
 		case string(llms.ChatMessageTypeSystem):
-			messages = append(messages, llms.SystemChatMessage{Content: data})
+			messages = append(messages, llms.SystemChatMessage{Content: content})
 		default:
 			return nil, fmt.Errorf("unsupported message type: %s", messageType)
 		}
@@ -180,7 +194,11 @@ func (c *ChatMessageHistory) SetMessages(ctx context.Context, messages []llms.Ch
 		c.schemaName, c.tableName)
 
 	for _, message := range messages {
-		b.Queue(query, c.sessionID, message.GetContent(), message.GetType())
+		data, err := json.Marshal(message.GetContent())
+		if err != nil {
+			return fmt.Errorf("failed to serialize content to JSON: %w", err)
+		}
+		b.Queue(query, c.sessionID, data, message.GetType())
 	}
 	return c.engine.Pool.SendBatch(ctx, b).Close()
 }
