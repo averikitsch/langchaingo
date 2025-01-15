@@ -10,11 +10,25 @@ import (
 
 const (
 	defaultSchemaName         = "public"
-	defaultIDColumn           = "langchain_id" // TODO :: Confirm this
+	defaultIDColumn           = "langchain_id"
 	defaultContentColumn      = "content"
 	defaultEmbeddingColumn    = "embedding"
-	defaultMetadataJsonColumn = "langchain_metadata" // TODO :: Confirm this
+	defaultMetadataJsonColumn = "langchain_metadata"
 )
+
+type VectorStore struct {
+	engine             alloydbutil.PostgresEngine
+	embedder           embeddings.Embedder
+	tableName          string
+	schemaName         string
+	idColumn           string
+	metadataJsonColumn string
+	contentColumn      string
+	embeddingColumn    string
+	metadataColumns    []string
+	overwriteExisting  bool
+	indexQueryOptions  []QueryOptions
+}
 
 // MyQueryOptions options that can be converted to strings.
 type MyQueryOptions struct {
@@ -41,6 +55,13 @@ func WithSchemaName(schemaName string) AlloyDBVectoreStoresOption {
 func WithIDColumn(idColumn string) AlloyDBVectoreStoresOption {
 	return func(v *VectorStore) {
 		v.idColumn = idColumn
+	}
+}
+
+// WithMetadataJsonColumn sets VectorStore's the metadataJsonColumn field.
+func WithMetadataJsonColumn(metadataJsonColumn string) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.metadataJsonColumn = metadataJsonColumn
 	}
 }
 
@@ -87,13 +108,15 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 		return VectorStore{}, errors.New("missing vector store table name")
 	}
 	vs := &VectorStore{
-		engine:          engine,
-		embedder:        embedder,
-		tableName:       tableName,
-		idColumn:        defaultIDColumn,
-		contentColumn:   defaultContentColumn,
-		embeddingColumn: defaultEmbeddingColumn,
-		metadataColumns: []string{}, // TODO :: confirm this initialization is needed.
+		engine:             engine,
+		embedder:           embedder,
+		tableName:          tableName,
+		schemaName:         defaultSchemaName,
+		idColumn:           defaultIDColumn,
+		contentColumn:      defaultContentColumn,
+		embeddingColumn:    defaultEmbeddingColumn,
+		metadataJsonColumn: defaultMetadataJsonColumn,
+		metadataColumns:    []string{}, // TODO :: confirm this initialization is needed.
 
 	}
 	for _, opt := range opts {

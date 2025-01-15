@@ -90,7 +90,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		return nil, fmt.Errorf("failed embed documents: %w", err)
 	}
 
-	ids := make([]string, len(texts))
+	ids := make([]string, len(texts)) // TODO :: check if ids are on the document's metadata
 	for i := range texts {
 		ids[i] = uuid.New().String()
 	}
