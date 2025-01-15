@@ -62,7 +62,7 @@ type BaseIndex struct {
 	name             string
 	indexType        string
 	distanceStrategy string
-	partialIndexes   string
+	partialIndexes   []string
 }
 
 var _ vectorstores.VectorStore = &VectorStore{}
@@ -160,11 +160,11 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDo
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name, distanceStrategy, scannIndexFunction string, concurrently bool) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name, scannIndexFunction string, concurrently bool) error {
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name)
 	}
-	function := distanceStrategy
+	function := index.distanceStrategy
 	if index.indexType == "ScaNN" {
 		_, err := vs.engine.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS alloydb_scann")
 		if err != nil {
@@ -180,7 +180,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	params := "" // index.indexOptions
+	params := getIndexOptions(index.indexType)
 
 	if name == "None" {
 		name = vs.tableName + defaultIndexNameSuffix
@@ -262,4 +262,20 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	}
 
 	return indexnameFromDb == indexName, nil
+}
+
+// getIndexOptions gets the func from the index type
+func getIndexOptions(indexType string) string {
+	switch indexType {
+	case "hnsw":
+		return "(m = 16, ef_construction = 64)"
+	case "ivfflat":
+		return "(lists = 100)"
+	case "ivf":
+		return "(lists = 100, quantizer = sq8)"
+	case "ScaNN":
+		return "(num_leaves = 5, quantizer = sq8)"
+	default:
+		return ""
+	}
 }
