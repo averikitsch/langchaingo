@@ -58,6 +58,13 @@ type VectorStore struct {
 	indexQueryOptions  []QueryOptions
 }
 
+type BaseIndex struct {
+	name             string
+	indexType        string
+	distanceStrategy string
+	partialIndexes   string
+}
+
 var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
@@ -152,7 +159,50 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDo
 	return nil, nil
 }
 
-// Develop ApplyVectorIndex
+// ApplyVectorIndex creates an index in the table of the embeddings
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently bool) error {
+	filter := ""
+	if len(index.partialIndexes) > 0 {
+		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
+	}
+	params := ""                // index.indexOptions
+	function := "vector_l2_ops" // index.distance_strategy.index_function
+
+	if name == "None" {
+		name = vs.tableName + defaultIndexNameSuffix
+	} else {
+		name = index.name
+	}
+
+	concurrentlyStr := ""
+	if concurrently {
+		concurrentlyStr = "CONCURRENTLY"
+	}
+
+	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s", concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
+	if concurrently {
+		_, err := vs.engine.Pool.Exec(ctx, "COMMIT")
+		if err != nil {
+			return err
+		}
+		_, err = vs.engine.Pool.Exec(ctx, stmt)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	_, err := vs.engine.Pool.Exec(ctx, stmt)
+	if err != nil {
+		return err
+	}
+	_, err = vs.engine.Pool.Exec(ctx, "COMMIT")
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
 
 // ReIndex re-indexes the VectorStore.
 func (vs *VectorStore) ReIndex(ctx context.Context, indexName string) error {
