@@ -16,20 +16,6 @@ const (
 	defaultMetadataJsonColumn = "langchain_metadata"
 )
 
-type VectorStore struct {
-	engine             alloydbutil.PostgresEngine
-	embedder           embeddings.Embedder
-	tableName          string
-	schemaName         string
-	idColumn           string
-	metadataJsonColumn string
-	contentColumn      string
-	embeddingColumn    string
-	metadataColumns    []string
-	overwriteExisting  bool
-	indexQueryOptions  []QueryOptions
-}
-
 // MyQueryOptions options that can be converted to strings.
 type MyQueryOptions struct {
 	optionString string
