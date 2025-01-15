@@ -2,6 +2,7 @@ package alloydb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -44,16 +45,17 @@ LIMIT $3`
 )
 
 type VectorStore struct {
-	engine            alloydbutil.PostgresEngine
-	embedder          embeddings.Embedder
-	tableName         string
-	schemaName        string //TODO:: Confirm if is this needed
-	idColumn          string // TODO :: Confirm if is this needed
-	contentColumn     string
-	embeddingColumn   string
-	metadataColumns   []string
-	overwriteExisting bool
-	indexQueryOptions []QueryOptions
+	engine             alloydbutil.PostgresEngine
+	embedder           embeddings.Embedder
+	tableName          string
+	schemaName         string //TODO:: Confirm if is this needed
+	idColumn           string // TODO :: Confirm if is this needed
+	metadataJsonColumn string // TODO :: Confirm if is this needed
+	contentColumn      string
+	embeddingColumn    string
+	metadataColumns    []string
+	overwriteExisting  bool
+	indexQueryOptions  []QueryOptions
 }
 
 var _ vectorstores.VectorStore = &VectorStore{}
@@ -67,52 +69,52 @@ func NewVectorStore(ctx context.Context, engine alloydbutil.PostgresEngine, embe
 	return vs, nil
 }
 
-// AddDocuments adds documents to the Postgres collection,
-// and returns the ids of the added documents.
-func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) {
-	docContents := []string{}
-	docMetadatas := []map[string]any{}
-	for _, docs := range docs {
-		docContents = append(docContents, docs.PageContent)
-		docMetadatas = append(docMetadatas, docs.Metadata)
+// AddDocuments adds documents to the Postgres collection, and returns the ids
+// of the added documents.
+func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) { // TODO :: ids can be passed as parameter?
+	texts := []string{}
+	metadatas := []map[string]any{}
+	for _, doc := range docs {
+		texts = append(texts, doc.PageContent)
+		metadatas = append(metadatas, doc.Metadata)
 	}
-	embeddings, err := vs.embedder.EmbedDocuments(ctx, docContents)
+	embeddings, err := vs.embedder.EmbedDocuments(ctx, texts)
 	if err != nil {
 		return nil, fmt.Errorf("failed embed documents: %w", err)
 	}
 
-	ids := make([]string, len(docContents))
-	for i := range docContents {
+	ids := make([]string, len(texts))
+	for i := range texts {
 		ids[i] = uuid.New().String()
 	}
 
-	// If metadatas are not provided, initialize with empty maps
-	if len(docMetadatas) == 0 {
-		docMetadatas = make([]map[string]interface{}, len(docContents))
-		for i := range docContents {
-			docMetadatas[i] = make(map[string]interface{})
+	// If no metadata provided, initialize with empty maps
+	if len(metadatas) == 0 {
+		metadatas = make([]map[string]interface{}, len(texts))
+		for i := range texts {
+			metadatas[i] = make(map[string]interface{})
 		}
 	}
 
 	b := &pgx.Batch{}
 
-	for i := range docContents {
+	for i := range texts {
 		id := ids[i]
-		content := docContents[i]
+		content := texts[i]
 		embedding := embeddings[i]
-		metadata := docMetadatas[i]
+		metadata := metadatas[i]
 
-		// Construct metadata column names if present // TODO :: Check this, what is it doing?
+		// Construct metadata column names if present
 		metadataColNames := ""
 		if len(vs.metadataColumns) > 0 {
 			metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
 		}
 
-		insertStmt := fmt.Sprintf(`INSERT INTO "%s" (%s, %s, %s%s)`, // TODO :: Isnt schema name needed?
-			vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
+		insertStmt := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s, %s, %s%s)`, // TODO :: Isnt schema name needed?
+			vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
 		valuesStmt := "VALUES ($1, $2, $3"
 		values := []interface{}{id, content, embedding}
-
+		// Add metadata
 		for _, metadataColumn := range vs.metadataColumns {
 			if val, ok := metadata[metadataColumn]; ok {
 				valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
@@ -122,7 +124,15 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 				valuesStmt += ", NULL"
 			}
 		}
-		// TODO :: is adding JSON column and/or close statement needed?
+		// Add JSON column and/or close statement
+		if vs.metadataJsonColumn != "" {
+			valuesStmt += ", $%d"
+			metadataJson, err := json.Marshal(metadata)
+			if err != nil {
+				return nil, fmt.Errorf("failed to transform metadata to json: %w", err)
+			}
+			values = append(values, metadataJson)
+		}
 		valuesStmt += ")"
 		query := insertStmt + valuesStmt
 		b.Queue(query, values...)
@@ -133,9 +143,12 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 // SimilaritySearch performs a similarity search on the database using the
 // query vector.
 func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...vectorstores.Option) ([]schema.Document, error) {
-	/*
-		Develop this
-	}*/
+	_, err := applyOpts(options...)
+	if err != nil {
+		return nil, err
+	}
+	// Query Collection starts here
+
 	return nil, nil
 }
 

@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	defaultSchemaName      = "public"
-	defaultIDColumn        = "langchain_id" // TODO :: Confirm this
-	defaultContentColumn   = "content"
-	defaultEmbeddingColumn = "embedding"
+	defaultSchemaName         = "public"
+	defaultIDColumn           = "langchain_id" // TODO :: Confirm this
+	defaultContentColumn      = "content"
+	defaultEmbeddingColumn    = "embedding"
+	defaultMetadataJsonColumn = "langchain_metadata" // TODO :: Confirm this
 )
 
 // MyQueryOptions options that can be converted to strings.
