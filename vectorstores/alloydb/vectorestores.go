@@ -160,13 +160,27 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDo
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently bool) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name, distanceStrategy, scannIndexFunction string, concurrently bool) error {
+	if index.indexType == "exactnearestneighbor" {
+		return vs.DropVectorIndex(ctx, name)
+	}
+	function := distanceStrategy
+	if index.indexType == "ScaNN" {
+		_, err := vs.engine.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS alloydb_scann")
+		if err != nil {
+			return fmt.Errorf("failed to create alloydb scann extension: %w", err)
+		}
+		_, err = vs.engine.Pool.Exec(ctx, "COMMIT")
+		if err != nil {
+			return fmt.Errorf("failed to commit alloydb scann extension: %w", err)
+		}
+		function = scannIndexFunction
+	}
 	filter := ""
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	params := ""                // index.indexOptions
-	function := "vector_l2_ops" // index.distance_strategy.index_function
+	params := "" // index.indexOptions
 
 	if name == "None" {
 		name = vs.tableName + defaultIndexNameSuffix
@@ -183,22 +197,22 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if concurrently {
 		_, err := vs.engine.Pool.Exec(ctx, "COMMIT")
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to commit index concurrently: %w", err)
 		}
 		_, err = vs.engine.Pool.Exec(ctx, stmt)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to execute creation of index concurrently: %w", err)
 		}
 		return nil
 	}
 
 	_, err := vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to execute creation of index: %w", err)
 	}
 	_, err = vs.engine.Pool.Exec(ctx, "COMMIT")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to commit index concurrently: %w", err)
 	}
 	return nil
 
