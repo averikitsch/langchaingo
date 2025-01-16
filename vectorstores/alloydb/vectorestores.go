@@ -62,7 +62,7 @@ type VectorStore struct {
 	indexQueryOptions  []QueryOptions
 }
 
-type BaseIndex struct { // TODO :: Double check this
+type BaseIndex struct {
 	name             string
 	indexType        string
 	distanceStrategy string
@@ -82,7 +82,7 @@ func NewVectorStore(ctx context.Context, engine alloydbutil.PostgresEngine, embe
 
 // AddDocuments adds documents to the Postgres collection, and returns the ids
 // of the added documents.
-func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) { // TODO :: ids can be passed as parameter?
+func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) {
 	var texts []string
 	for _, doc := range docs {
 		texts = append(texts, doc.PageContent)
