@@ -14,13 +14,8 @@ const (
 	defaultContentColumn      = "content"
 	defaultEmbeddingColumn    = "embedding"
 	defaultMetadataJsonColumn = "langchain_metadata"
+	defaultK                  = 4
 )
-
-// MyQueryOptions options that can be converted to strings.
-type MyQueryOptions struct {
-	optionString string
-	optionInt    int
-}
 
 type QueryOptions interface {
 	ToString() string
@@ -80,6 +75,13 @@ func WithOverwriteExisting() AlloyDBVectoreStoresOption {
 	}
 }
 
+// WithK sets the number of Documents to return from the VectorStore.
+func WithK(k int) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.k = k
+	}
+}
+
 // applyAlloyDBVectorStoreOptions applies the given VectorStore options to the
 // VectorStore with an alloydb Engine.
 func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
@@ -102,8 +104,8 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 		contentColumn:      defaultContentColumn,
 		embeddingColumn:    defaultEmbeddingColumn,
 		metadataJsonColumn: defaultMetadataJsonColumn,
-		metadataColumns:    []string{}, // TODO :: confirm this initialization is needed.
-
+		k:                  defaultK,
+		metadataColumns:    []string{},
 	}
 	for _, opt := range opts {
 		opt(vs)
@@ -117,15 +119,6 @@ func applyOpts(options ...vectorstores.Option) (vectorstores.Options, error) {
 	for _, opt := range options {
 		opt(&opts)
 	}
-
-	// TODO :: add default threshold value and check vaules for it
-	/* TODO :: Add correct checks
-	 	if opts.NameSpace != "" {
-		vs.collectionName = opts.NameSpace
-	}
-			if opts.ScoreThreshold != 0 || opts.Filters != nil || opts.NameSpace != "" {
-		return nil, errors.New("vector store unsupported options")
-	}
-	*/
+	// TODO :: Add required fields and default values
 	return opts, nil
 }

@@ -44,21 +44,25 @@ ORDER BY
 LIMIT $3`
 )
 
+type DistanceStrategy int
+
 type VectorStore struct {
 	engine             alloydbutil.PostgresEngine
 	embedder           embeddings.Embedder
 	tableName          string
-	schemaName         string //TODO:: Confirm if is this needed
-	idColumn           string // TODO :: Confirm if is this needed
-	metadataJsonColumn string // TODO :: Confirm if is this needed
+	schemaName         string
+	idColumn           string
+	metadataJsonColumn string
 	contentColumn      string
 	embeddingColumn    string
 	metadataColumns    []string
 	overwriteExisting  bool
+	k                  int
+	distanceStrategy   DistanceStrategy
 	indexQueryOptions  []QueryOptions
 }
 
-type BaseIndex struct {
+type BaseIndex struct { // TODO :: Double check this
 	name             string
 	indexType        string
 	distanceStrategy string
@@ -79,30 +83,32 @@ func NewVectorStore(ctx context.Context, engine alloydbutil.PostgresEngine, embe
 // AddDocuments adds documents to the Postgres collection, and returns the ids
 // of the added documents.
 func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) { // TODO :: ids can be passed as parameter?
-	texts := []string{}
-	metadatas := []map[string]any{}
+	var texts []string
 	for _, doc := range docs {
 		texts = append(texts, doc.PageContent)
-		metadatas = append(metadatas, doc.Metadata)
 	}
 	embeddings, err := vs.embedder.EmbedDocuments(ctx, texts)
 	if err != nil {
 		return nil, fmt.Errorf("failed embed documents: %w", err)
 	}
-
-	ids := make([]string, len(texts)) // TODO :: check if ids are on the document's metadata
-	for i := range texts {
-		ids[i] = uuid.New().String()
-	}
-
-	// If no metadata provided, initialize with empty maps
-	if len(metadatas) == 0 {
-		metadatas = make([]map[string]interface{}, len(texts))
-		for i := range texts {
-			metadatas[i] = make(map[string]interface{})
+	// If no ids provided, generate them.
+	ids := make([]string, len(texts))
+	for i, doc := range docs {
+		if val, ok := doc.Metadata["id"].(string); ok {
+			ids[i] = val
+		} else {
+			ids[i] = uuid.New().String()
 		}
 	}
-
+	// If no metadata provided, initialize with empty maps
+	metadatas := make([]map[string]interface{}, len(texts))
+	for i := range docs {
+		if docs[i].Metadata == nil {
+			metadatas[i] = make(map[string]interface{})
+		} else {
+			metadatas[i] = docs[i].Metadata
+		}
+	}
 	b := &pgx.Batch{}
 
 	for i := range texts {
@@ -117,7 +123,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 			metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
 		}
 
-		insertStmt := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s, %s, %s%s)`, // TODO :: Isnt schema name needed?
+		insertStmt := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s, %s, %s%s)`,
 			vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
 		valuesStmt := "VALUES ($1, $2, $3"
 		values := []interface{}{id, content, embedding}
@@ -133,7 +139,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		}
 		// Add JSON column and/or close statement
 		if vs.metadataJsonColumn != "" {
-			valuesStmt += ", $%d"
+			valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
 			metadataJson, err := json.Marshal(metadata)
 			if err != nil {
 				return nil, fmt.Errorf("failed to transform metadata to json: %w", err)
@@ -144,7 +150,13 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		query := insertStmt + valuesStmt
 		b.Queue(query, values...)
 	}
-	return ids, vs.engine.Pool.SendBatch(ctx, b).Close()
+
+	batchResults := vs.engine.Pool.SendBatch(ctx, b)
+	if err := batchResults.Close(); err != nil {
+		return nil, fmt.Errorf("failed to execute batch: %w", err)
+	}
+
+	return ids, nil
 }
 
 // SimilaritySearch performs a similarity search on the database using the
@@ -154,8 +166,8 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDo
 	if err != nil {
 		return nil, err
 	}
-	// Query Collection starts here
-
+	_, err = vs.embedder.EmbedQuery(ctx, query)
+	// await self.asimilarity_search_with_score_by_vector( embedding=embedding, k=k, filter=filter, **kwargs) -> list[Document]
 	return nil, nil
 }
 
@@ -170,10 +182,6 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 		if err != nil {
 			return fmt.Errorf("failed to create alloydb scann extension: %w", err)
 		}
-		_, err = vs.engine.Pool.Exec(ctx, "COMMIT")
-		if err != nil {
-			return fmt.Errorf("failed to commit alloydb scann extension: %w", err)
-		}
 		function = scannIndexFunction
 	}
 	filter := ""
@@ -182,9 +190,10 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	}
 	params := getIndexOptions(index.indexType)
 
-	if name == "None" {
-		name = vs.tableName + defaultIndexNameSuffix
-	} else {
+	if name == "" {
+		if index.name == "" {
+			index.name = vs.tableName + defaultIndexNameSuffix
+		}
 		name = index.name
 	}
 
@@ -193,18 +202,8 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 		concurrentlyStr = "CONCURRENTLY"
 	}
 
-	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s", concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
-	if concurrently {
-		_, err := vs.engine.Pool.Exec(ctx, "COMMIT")
-		if err != nil {
-			return fmt.Errorf("failed to commit index concurrently: %w", err)
-		}
-		_, err = vs.engine.Pool.Exec(ctx, stmt)
-		if err != nil {
-			return fmt.Errorf("failed to execute creation of index concurrently: %w", err)
-		}
-		return nil
-	}
+	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
+		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
 	_, err := vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
@@ -212,10 +211,9 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	}
 	_, err = vs.engine.Pool.Exec(ctx, "COMMIT")
 	if err != nil {
-		return fmt.Errorf("failed to commit index concurrently: %w", err)
+		return fmt.Errorf("failed to commit index: %w", err)
 	}
 	return nil
-
 }
 
 // ReIndex re-indexes the VectorStore.
