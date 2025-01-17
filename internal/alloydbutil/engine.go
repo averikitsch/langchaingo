@@ -35,7 +35,6 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 	}
 	if cfg.connPool == nil {
 		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
-
 		if err != nil {
 			return &PostgresEngine{}, err
 		}
