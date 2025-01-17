@@ -56,6 +56,14 @@ type VectorStore struct {
 	embeddingColumn    string
 	metadataColumns    []string
 	overwrite          bool
+	distanceStrategy   distanceStrategy
+}
+
+type BaseIndex struct {
+	name             string
+	indexType        string
+	distanceStrategy distanceStrategy
+	partialIndexes   []string
 }
 
 var _ vectorstores.VectorStore = &VectorStore{}
