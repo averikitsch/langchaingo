@@ -43,11 +43,11 @@ func (ds distanceStrategy) operator() string {
 func (ds distanceStrategy) searchFunction() string {
 	switch ds {
 	case euclidean:
-		return "l2_distance"
+		return "vector_l2_ops"
 	case cosineDistance:
-		return "cosine_distance"
+		return "vector_cosine_ops"
 	case innerProduct:
-		return "inner_product"
+		return "vector_ip_ops"
 	default:
 		return ""
 	}

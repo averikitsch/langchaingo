@@ -240,19 +240,18 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name)
 	}
-	function := index.distanceStrategy // TODO :: modify this to type DistanceStrategy
+	function := index.distanceStrategy.searchFunction()
 	if index.indexType == "ScaNN" {
 		_, err := vs.engine.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS alloydb_scann")
 		if err != nil {
 			return fmt.Errorf("failed to create alloydb scann extension: %w", err)
 		}
-		function = scannIndexFunction // TODO :: modify this to type DistanceStrategy
 	}
 	filter := ""
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	params := index.indexOptions() // TODO :: check this to type DistanceStrategy
+	params := fmt.Sprintf("WITH %s", index.indexOptions())
 
 	if name == "" {
 		if index.name == "" {
