@@ -82,6 +82,13 @@ func WithK(k int) AlloyDBVectoreStoresOption {
 	}
 }
 
+// WithDistanceStrategy sets the distance strategy used by the VectorStore.
+func WithDistanceStrategy(distanceStrategy distanceStrategy) AlloyDBVectoreStoresOption {
+	return func(v *VectorStore) {
+		v.distanceStrategy = distanceStrategy
+	}
+}
+
 // applyAlloyDBVectorStoreOptions applies the given VectorStore options to the
 // VectorStore with an alloydb Engine.
 func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
@@ -105,6 +112,7 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 		embeddingColumn:    defaultEmbeddingColumn,
 		metadataJsonColumn: defaultMetadataJsonColumn,
 		k:                  defaultK,
+		distanceStrategy:   defaultDistanceStrategy,
 		metadataColumns:    []string{},
 	}
 	for _, opt := range opts {

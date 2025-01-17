@@ -44,8 +44,6 @@ ORDER BY
 LIMIT $3`
 )
 
-type DistanceStrategy int
-
 type VectorStore struct {
 	engine             alloydbutil.PostgresEngine
 	embedder           embeddings.Embedder
@@ -58,14 +56,14 @@ type VectorStore struct {
 	metadataColumns    []string
 	overwriteExisting  bool
 	k                  int
-	distanceStrategy   DistanceStrategy
+	distanceStrategy   distanceStrategy
 	indexQueryOptions  []QueryOptions
 }
 
 type BaseIndex struct {
 	name             string
 	indexType        string
-	distanceStrategy string
+	distanceStrategy distanceStrategy
 	partialIndexes   []string
 }
 
@@ -162,13 +160,79 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 // SimilaritySearch performs a similarity search on the database using the
 // query vector.
 func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...vectorstores.Option) ([]schema.Document, error) {
-	_, err := applyOpts(options...)
+	opts, err := applyOpts(options...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to apply vector store options: %w", err)
 	}
-	_, err = vs.embedder.EmbedQuery(ctx, query)
-	// await self.asimilarity_search_with_score_by_vector( embedding=embedding, k=k, filter=filter, **kwargs) -> list[Document]
-	return nil, nil
+	var documents []schema.Document
+	embedding, err := vs.embedder.EmbedQuery(ctx, query)
+	operator := vs.distanceStrategy.operator()
+	searchFunction := vs.distanceStrategy.searchFunction()
+
+	columns := append(vs.metadataColumns, vs.idColumn, vs.contentColumn, vs.embeddingColumn) // TODO :: double check this.
+	if vs.metadataJsonColumn != "" {
+		columns = append(columns, vs.metadataJsonColumn)
+	}
+	columnNames := `" ` + strings.Join(columns, `", "`) + `"`
+	whereClause := ""
+	if opts.Filters != "" { // TODO :: Check for filters examples
+		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
+	}
+	stmt := fmt.Sprintf(`
+        SELECT %s, %s(%s, $1) AS distance 
+        FROM "%s"."%s" %s 
+        ORDER BY %s %s $1 LIMIT $2;
+    `, columnNames, searchFunction, vs.embeddingColumn, vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator)
+
+	rows, err := vs.engine.Pool.Query(ctx, stmt, embedding, vs.k)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute similar search query: %w", err)
+	}
+	defer rows.Close()
+
+	var results []map[string]any // TODO :: check maps
+	for rows.Next() {
+		resultMap := make(map[string]any)
+		err := rows.Scan(&resultMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan result: %w", err)
+		}
+		results = append(results, resultMap)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+	var documentsWithScores []struct {
+		Document schema.Document
+		Score    float64
+	}
+
+	for _, row := range results {
+		metadata := make(map[string]interface{})
+		if vs.metadataJsonColumn != "" && row[vs.metadataJsonColumn] != nil {
+			if err := json.Unmarshal(row[vs.metadataJsonColumn].([]byte), &metadata); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal metadata JSON: %w", err)
+			}
+		}
+		for _, col := range vs.metadataColumns {
+			if val, ok := row[col]; ok {
+				metadata[col] = val
+			}
+		}
+		document := schema.Document{
+			PageContent: row[vs.contentColumn].(string),
+			Metadata:    metadata,
+		}
+		distance := row["distance"].(float64)
+		documentsWithScores = append(documentsWithScores, struct {
+			Document schema.Document
+			Score    float64
+		}{Document: document, Score: distance})
+	}
+	for _, docAndScore := range documentsWithScores {
+		documents = append(documents, docAndScore.Document)
+	}
+	return documents, nil
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
@@ -176,19 +240,19 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name)
 	}
-	function := index.distanceStrategy
+	function := index.distanceStrategy // TODO :: modify this to type DistanceStrategy
 	if index.indexType == "ScaNN" {
 		_, err := vs.engine.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS alloydb_scann")
 		if err != nil {
 			return fmt.Errorf("failed to create alloydb scann extension: %w", err)
 		}
-		function = scannIndexFunction
+		function = scannIndexFunction // TODO :: modify this to type DistanceStrategy
 	}
 	filter := ""
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	params := getIndexOptions(index.indexType)
+	params := index.indexOptions() // TODO :: check this to type DistanceStrategy
 
 	if name == "" {
 		if index.name == "" {
@@ -260,20 +324,4 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	}
 
 	return indexnameFromDb == indexName, nil
-}
-
-// getIndexOptions gets the func from the index type
-func getIndexOptions(indexType string) string {
-	switch indexType {
-	case "hnsw":
-		return "(m = 16, ef_construction = 64)"
-	case "ivfflat":
-		return "(lists = 100)"
-	case "ivf":
-		return "(lists = 100, quantizer = sq8)"
-	case "ScaNN":
-		return "(num_leaves = 5, quantizer = sq8)"
-	default:
-		return ""
-	}
 }
