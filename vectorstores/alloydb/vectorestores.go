@@ -57,7 +57,6 @@ type VectorStore struct {
 	overwriteExisting  bool
 	k                  int
 	distanceStrategy   distanceStrategy
-	indexQueryOptions  []QueryOptions
 }
 
 type BaseIndex struct {
@@ -80,7 +79,7 @@ func NewVectorStore(ctx context.Context, engine alloydbutil.PostgresEngine, embe
 
 // AddDocuments adds documents to the Postgres collection, and returns the ids
 // of the added documents.
-func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, options ...vectorstores.Option) ([]string, error) {
+func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, _ ...vectorstores.Option) ([]string, error) {
 	var texts []string
 	for _, doc := range docs {
 		texts = append(texts, doc.PageContent)

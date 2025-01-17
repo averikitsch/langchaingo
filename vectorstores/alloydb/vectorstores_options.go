@@ -17,10 +17,6 @@ const (
 	defaultK                  = 4
 )
 
-type QueryOptions interface {
-	ToString() string
-}
-
 // AlloyDBVectoreStoresOption is a function for creating new vector store
 // with other than the default values.
 type AlloyDBVectoreStoresOption func(vs *VectorStore)
