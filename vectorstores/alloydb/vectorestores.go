@@ -158,38 +158,51 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 
 // SimilaritySearch performs a similarity search on the database using the
 // query vector.
-func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDocuments int, options ...vectorstores.Option) ([]schema.Document, error) {
+func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int, options ...vectorstores.Option) ([]schema.Document, error) {
 	opts, err := applyOpts(options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply vector store options: %w", err)
 	}
 	var documents []schema.Document
 	embedding, err := vs.embedder.EmbedQuery(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed embed query: %w", err)
+	}
 	operator := vs.distanceStrategy.operator()
 	searchFunction := vs.distanceStrategy.searchFunction()
 
-	columns := append(vs.metadataColumns, vs.idColumn, vs.contentColumn, vs.embeddingColumn) // TODO :: double check this.
+	columns := append(vs.metadataColumns, vs.idColumn, vs.contentColumn, vs.embeddingColumn)
 	if vs.metadataJsonColumn != "" {
 		columns = append(columns, vs.metadataJsonColumn)
 	}
 	columnNames := `" ` + strings.Join(columns, `", "`) + `"`
 	whereClause := ""
-	if opts.Filters != "" { // TODO :: Check for filters examples
+	if opts.Filters != "" {
 		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
 	stmt := fmt.Sprintf(`
-        SELECT %s, %s(%s, $1) AS distance 
-        FROM "%s"."%s" %s 
-        ORDER BY %s %s $1 LIMIT $2;
-    `, columnNames, searchFunction, vs.embeddingColumn, vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator)
+        SELECT %s, %s(%s, $1) AS distance FROM "%s"."%s" %s ORDER BY %s %s $1 LIMIT $2;`,
+		columnNames, searchFunction, vs.embeddingColumn, vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator)
 
+	results, err := vs.executeSQLQuery(ctx, stmt, embedding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute sql query: %w", err)
+	}
+	documents, err = vs.processResultsToDocuments(results)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process Results to Documents with Scores: %w", err)
+	}
+	return documents, nil
+}
+
+func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string, embedding []float32) ([]map[string]any, error) {
 	rows, err := vs.engine.Pool.Query(ctx, stmt, embedding, vs.k)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute similar search query: %w", err)
 	}
 	defer rows.Close()
 
-	var results []map[string]any // TODO :: check maps
+	var results []map[string]any
 	for rows.Next() {
 		resultMap := make(map[string]any)
 		err := rows.Scan(&resultMap)
@@ -201,16 +214,20 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDo
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
 	}
-	var documentsWithScores []struct {
-		Document schema.Document
-		Score    float64
-	}
+	return results, nil
+}
 
+func (vs *VectorStore) processResultsToDocuments(results []map[string]any) ([]schema.Document, error) {
+	var documents []schema.Document
 	for _, row := range results {
-		metadata := make(map[string]interface{})
+		metadata := make(map[string]any)
 		if vs.metadataJsonColumn != "" && row[vs.metadataJsonColumn] != nil {
-			if err := json.Unmarshal(row[vs.metadataJsonColumn].([]byte), &metadata); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal metadata JSON: %w", err)
+			if jsonBytes, ok := row[vs.metadataJsonColumn].([]byte); ok {
+				if err := json.Unmarshal(jsonBytes, &metadata); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal metadata JSON: %w", err)
+				}
+			} else {
+				return nil, fmt.Errorf("expected byte slice for metadata JSON, but got %T", row[vs.metadataJsonColumn])
 			}
 		}
 		for _, col := range vs.metadataColumns {
@@ -222,14 +239,12 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, numDo
 			PageContent: row[vs.contentColumn].(string),
 			Metadata:    metadata,
 		}
-		distance := row["distance"].(float64)
-		documentsWithScores = append(documentsWithScores, struct {
-			Document schema.Document
-			Score    float64
-		}{Document: document, Score: distance})
-	}
-	for _, docAndScore := range documentsWithScores {
-		documents = append(documents, docAndScore.Document)
+		distance, ok := row["distance"].(float64)
+		if !ok {
+			return nil, fmt.Errorf("expected distance to be a floating value, but got %T", row["distance"])
+		}
+		document.Score = float32(distance)
+		documents = append(documents, document)
 	}
 	return documents, nil
 }
