@@ -12,7 +12,7 @@ const (
 var defaultDistanceStrategy = cosineDistance
 
 // String method to display distanceStrategy as string
-func (ds distanceStrategy) string() string {
+func (ds distanceStrategy) String() string {
 	switch ds {
 	case euclidean:
 		return "euclidean"

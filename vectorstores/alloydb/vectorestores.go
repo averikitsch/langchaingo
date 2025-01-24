@@ -16,32 +16,6 @@ import (
 
 const (
 	defaultIndexNameSuffix = "langchainvectorindex"
-	similaritySearchQuery  = `WITH filtered_embedding_dims AS MATERIALIZED (
-    SELECT
-        *
-    FROM
-        %s
-    WHERE
-        vector_dims (
-                embedding
-        ) = $1
-)
-SELECT
-    data.document,
-    data.cmetadata,
-    (1 - data.distance) AS score
-FROM (
-    SELECT
-        filtered_embedding_dims.*,
-        embedding <=> $2 AS distance
-    FROM
-        filtered_embedding_dims
-    JOIN %s ON filtered_embedding_dims.collection_id=%s.uuid
-    WHERE %s.name='%s') AS data
-WHERE %s
-ORDER BY
-    data.distance
-LIMIT $3`
 )
 
 type VectorStore struct {
@@ -98,10 +72,10 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		}
 	}
 	// If no metadata provided, initialize with empty maps
-	metadatas := make([]map[string]interface{}, len(texts))
+	metadatas := make([]map[string]any, len(texts))
 	for i := range docs {
 		if docs[i].Metadata == nil {
-			metadatas[i] = make(map[string]interface{})
+			metadatas[i] = make(map[string]any)
 		} else {
 			metadatas[i] = docs[i].Metadata
 		}
