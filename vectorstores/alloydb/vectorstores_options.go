@@ -63,14 +63,6 @@ func WithMetadataColumns(metadataColumns []string) AlloyDBVectoreStoresOption {
 	}
 }
 
-// WithOverwriteExisting is an option for VectorStore to
-// allow dangerous operations.
-func WithOverwriteExisting() AlloyDBVectoreStoresOption {
-	return func(v *VectorStore) {
-		v.overwriteExisting = true
-	}
-}
-
 // WithK sets the number of Documents to return from the VectorStore.
 func WithK(k int) AlloyDBVectoreStoresOption {
 	return func(v *VectorStore) {
@@ -123,6 +115,5 @@ func applyOpts(options ...vectorstores.Option) (vectorstores.Options, error) {
 	for _, opt := range options {
 		opt(&opts)
 	}
-	// TODO :: Add required fields and default values
 	return opts, nil
 }

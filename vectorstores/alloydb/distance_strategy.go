@@ -5,57 +5,49 @@ import (
 	"strconv"
 )
 
-type distanceStrategy int
-
-const (
-	euclidean distanceStrategy = iota
-	cosineDistance
-	innerProduct
-)
-
 // defaultDistanceStrategy is the default strategy used if none is provided
-var defaultDistanceStrategy = cosineDistance
+var defaultDistanceStrategy = cosineDistance{}
 
-// String method to display distanceStrategy as string
-func (ds distanceStrategy) String() string {
-	switch ds {
-	case euclidean:
-		return "euclidean"
-	case cosineDistance:
-		return "cosineDistance"
-	case innerProduct:
-		return "innerProduct"
-	default:
-		return "Unknown"
-	}
+type distanceStrategy interface {
+	String() string
+	operator() string
+	searchFunction() string
 }
 
-// operator returns the operator used by the distanceStrategy
-func (ds distanceStrategy) operator() string {
-	switch ds {
-	case euclidean:
-		return "<->"
-	case cosineDistance:
-		return "<=>"
-	case innerProduct:
-		return "<#>"
-	default:
-		return ""
-	}
+type euclidean struct{}
+
+func (e euclidean) String() string {
+	return "euclidean"
+}
+func (e euclidean) operator() string {
+	return "<->"
+}
+func (e euclidean) searchFunction() string {
+	return "vector_l2_ops"
 }
 
-// searchFunction returns the appropriate search function for the distanceStrategy
-func (ds distanceStrategy) searchFunction() string {
-	switch ds {
-	case euclidean:
-		return "vector_l2_ops"
-	case cosineDistance:
-		return "vector_cosine_ops"
-	case innerProduct:
-		return "vector_ip_ops"
-	default:
-		return ""
-	}
+type cosineDistance struct{}
+
+func (c cosineDistance) String() string {
+	return "cosineDistance"
+}
+func (c cosineDistance) operator() string {
+	return "<=>"
+}
+func (c cosineDistance) searchFunction() string {
+	return "vector_cosine_ops"
+}
+
+type innerProduct struct{}
+
+func (i innerProduct) String() string {
+	return "innerProduct"
+}
+func (i innerProduct) operator() string {
+	return "<#>"
+}
+func (i innerProduct) searchFunction() string {
+	return "vector_ip_ops"
 }
 
 // indexOptions returns the specific options for the index based on the index type
@@ -69,7 +61,7 @@ func (index *BaseIndex) indexOptions(indexOpts []int) string {
 				m = indexOpts[0]
 				ef_construction = indexOpts[1]
 			}
-			return fmt.Sprintf("(m = %s, ef_construction = %S)", strconv.Itoa(m), strconv.Itoa(ef_construction))
+			return fmt.Sprintf("(m = %s, ef_construction = %s)", strconv.Itoa(m), strconv.Itoa(ef_construction))
 		}
 	case "ivfflat":
 		{

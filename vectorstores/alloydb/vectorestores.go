@@ -28,7 +28,6 @@ type VectorStore struct {
 	contentColumn      string
 	embeddingColumn    string
 	metadataColumns    []string
-	overwriteExisting  bool
 	k                  int
 	distanceStrategy   distanceStrategy
 }
@@ -97,7 +96,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		insertStmt := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s, %s, %s%s)`,
 			vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
 		valuesStmt := "VALUES ($1, $2, $3"
-		values := []interface{}{id, content, embedding}
+		values := []any{id, content, embedding}
 		// Add metadata
 		for _, metadataColumn := range vs.metadataColumns {
 			if val, ok := metadata[metadataColumn]; ok {
@@ -224,9 +223,9 @@ func (vs *VectorStore) processResultsToDocuments(results []map[string]any) ([]sc
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently bool, indexOpts ...int) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool, indexOpts ...int) error {
 	if index.indexType == "exactnearestneighbor" {
-		return vs.DropVectorIndex(ctx, name)
+		return vs.DropVectorIndex(ctx, name, overwrite)
 	}
 	function := index.distanceStrategy.searchFunction()
 	if index.indexType == "ScaNN" {
@@ -282,7 +281,11 @@ func (vs *VectorStore) ReIndex(ctx context.Context, indexName string) error {
 }
 
 // DropVectorIndex drops the vector index from the VectorStore.
-func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string) error {
+func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string, overwrite bool) error {
+	// Overwrite allows dangerous operations like a Drop query.
+	if !overwrite {
+		return nil
+	}
 	if indexName == "" {
 		indexName = vs.tableName + defaultIndexNameSuffix
 	}
