@@ -303,7 +303,7 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	if indexName == "" {
 		indexName = vs.tableName + defaultIndexNameSuffix
 	}
-	query := fmt.Sprintf("SELECT tablename, indexname  FROM pg_indexes WHERE tablename = %s AND schemaname = %s AND indexname = %s;", vs.tableName, vs.schemaName, indexName)
+	query := fmt.Sprintf("SELECT tablename, indexname  FROM pg_indexes WHERE tablename = '%s' AND schemaname = '%s' AND indexname = '%s';", vs.tableName, vs.schemaName, indexName)
 	var tablename, indexnameFromDb string
 	err := vs.engine.Pool.QueryRow(ctx, query).Scan(&tablename, &indexnameFromDb)
 	if err != nil {
