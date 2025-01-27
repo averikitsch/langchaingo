@@ -2,6 +2,7 @@ package alloydb_test
 
 import (
 	"context"
+	"fmt"
 	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"os"
@@ -102,14 +103,14 @@ func TestPingToDB(t *testing.T) {
 	}
 }
 
-func TestApplyVectorIndex(t *testing.T) {
+func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 	vs, err := setVectoreStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", 1, []string{})
-	err = vs.ApplyVectorIndex(ctx, idx, "testindex", "", false)
+	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,26 +120,24 @@ func TestApplyVectorIndex(t *testing.T) {
 	}
 }
 
-/*
-func setContainerUp(t *testing.T) bool {
+func TestIsValidIndex(t *testing.T) {
+	vs, err := setVectoreStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
-	genericContainerReq := testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "google/alloydbomni",
-			ExposedPorts: []string{"5432/tcp"},
-			WaitingFor:   wait.ForLog("* Ready to accept connections"),
-		},
-		Started: true,
+	idx := vs.NewBaseIndex("testindex", "hnsw", 1, []string{})
+	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false)
+	if err != nil {
+		t.Fatal(err)
 	}
-	container, err := testcontainers.GenericContainer(ctx, genericContainerReq)
-	if err != nil && strings.Contains(err.Error(), "Cannot connect to the Docker daemon") {
-		t.Skip("Docker not available")
+	isValid, err := vs.IsValidIndex(ctx, "testindex")
+	if err != nil {
+		t.Fatal(err)
 	}
-	require.NoError(t, err)
-	return container.IsRunning()
+	fmt.Println(isValid)
+	err = vs.DropVectorIndex(ctx, "testindex")
+	if err != nil {
+		t.Fatal(err)
+	}
 }
-
-func TestName(t *testing.T) {
-	fmt.Println(setContainerUp(t))
-}
-*/
