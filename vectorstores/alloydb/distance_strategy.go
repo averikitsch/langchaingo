@@ -1,5 +1,10 @@
 package alloydb
 
+import (
+	"fmt"
+	"strconv"
+)
+
 type distanceStrategy int
 
 const (
@@ -54,16 +59,42 @@ func (ds distanceStrategy) searchFunction() string {
 }
 
 // indexOptions returns the specific options for the index based on the index type
-func (index *BaseIndex) indexOptions() string {
+func (index *BaseIndex) indexOptions(indexOpts []int) string {
 	switch index.indexType {
 	case "hnsw":
-		return "(m = 16, ef_construction = 64)"
+		{
+			m := 16
+			ef_construction := 64
+			if len(indexOpts) == 2 {
+				m = indexOpts[0]
+				ef_construction = indexOpts[1]
+			}
+			return fmt.Sprintf("(m = %s, ef_construction = %S)", strconv.Itoa(m), strconv.Itoa(ef_construction))
+		}
 	case "ivfflat":
-		return "(lists = 100)"
+		{
+			lists := 100
+			if len(indexOpts) == 1 {
+				lists = indexOpts[0]
+			}
+			return fmt.Sprintf("(lists = %s)", strconv.Itoa(lists))
+		}
 	case "ivf":
-		return "(lists = 100, quantizer = sq8)"
+		{
+			lists := 100
+			if len(indexOpts) == 1 {
+				lists = indexOpts[0]
+			}
+			return fmt.Sprintf("(lists = %s, quantizer = sq8)", strconv.Itoa(lists))
+		}
 	case "ScaNN":
-		return "(num_leaves = 5, quantizer = sq8)"
+		{
+			numLeaves := 5
+			if len(indexOpts) == 1 {
+				numLeaves = indexOpts[0]
+			}
+			return fmt.Sprintf("(num_leaves = %s, quantizer = sq8)", strconv.Itoa(numLeaves))
+		}
 	default:
 		return ""
 	}

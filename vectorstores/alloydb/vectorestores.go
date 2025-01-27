@@ -224,7 +224,7 @@ func (vs *VectorStore) processResultsToDocuments(results []map[string]any) ([]sc
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name, scannIndexFunction string, concurrently bool) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently bool, indexOpts ...int) error {
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name)
 	}
@@ -239,7 +239,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	params := fmt.Sprintf("WITH %s", index.indexOptions())
+	params := fmt.Sprintf("WITH %s", index.indexOptions(indexOpts))
 
 	if name == "" {
 		if index.name == "" {
