@@ -93,10 +93,15 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 			metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
 		}
 
+		if vs.metadataJsonColumn != "" {
+			metadataColNames += ", " + vs.metadataJsonColumn
+		}
+
 		insertStmt := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s, %s, %s%s)`,
 			vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
 		valuesStmt := "VALUES ($1, $2, $3"
 		values := []any{id, content, embedding}
+
 		// Add metadata
 		for _, metadataColumn := range vs.metadataColumns {
 			if val, ok := metadata[metadataColumn]; ok {
