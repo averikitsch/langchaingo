@@ -6,7 +6,7 @@ import (
 )
 
 // defaultDistanceStrategy is the default strategy used if none is provided
-var defaultDistanceStrategy = cosineDistance{}
+var defaultDistanceStrategy = CosineDistance{}
 
 type distanceStrategy interface {
 	String() string
@@ -46,7 +46,7 @@ func (i InnerProduct) String() string {
 func (i InnerProduct) operator() string {
 	return "<#>"
 }
-func (i InnerProducts) searchFunction() string {
+func (i InnerProduct) searchFunction() string {
 	return "vector_ip_ops"
 }
 
