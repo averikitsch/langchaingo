@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -84,7 +85,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 	for i := range texts {
 		id := ids[i]
 		content := texts[i]
-		embedding := embeddings[i]
+		embedding := vectorToString(embeddings[i])
 		metadata := metadatas[i]
 
 		// Construct metadata column names if present
@@ -325,4 +326,19 @@ func (vs *VectorStore) NewBaseIndex(indexName, indexType string, strategy distan
 		distanceStrategy: strategy,
 		partialIndexes:   partialIndexes,
 	}
+}
+
+func vectorToString(vec []float32) string {
+	var buf strings.Builder
+	buf.WriteString("[")
+
+	for i := 0; i < len(vec); i++ {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString(strconv.FormatFloat(float64(vec[i]), 'f', -1, 32))
+	}
+
+	buf.WriteString("]")
+	return buf.String()
 }

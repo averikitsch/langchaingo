@@ -14,39 +14,39 @@ type distanceStrategy interface {
 	searchFunction() string
 }
 
-type euclidean struct{}
+type Euclidean struct{}
 
-func (e euclidean) String() string {
+func (e Euclidean) String() string {
 	return "euclidean"
 }
-func (e euclidean) operator() string {
+func (e Euclidean) operator() string {
 	return "<->"
 }
-func (e euclidean) searchFunction() string {
+func (e Euclidean) searchFunction() string {
 	return "vector_l2_ops"
 }
 
-type cosineDistance struct{}
+type CosineDistance struct{}
 
-func (c cosineDistance) String() string {
+func (c CosineDistance) String() string {
 	return "cosineDistance"
 }
-func (c cosineDistance) operator() string {
+func (c CosineDistance) operator() string {
 	return "<=>"
 }
-func (c cosineDistance) searchFunction() string {
+func (c CosineDistance) searchFunction() string {
 	return "vector_cosine_ops"
 }
 
-type innerProduct struct{}
+type InnerProduct struct{}
 
-func (i innerProduct) String() string {
+func (i InnerProduct) String() string {
 	return "innerProduct"
 }
-func (i innerProduct) operator() string {
+func (i InnerProduct) operator() string {
 	return "<#>"
 }
-func (i innerProduct) searchFunction() string {
+func (i InnerProducts) searchFunction() string {
 	return "vector_ip_ops"
 }
 
