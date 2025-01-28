@@ -3,21 +3,14 @@ package alloydb_test
 import (
 	"context"
 	"fmt"
+	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/alloydbutil"
+	"github.com/tmc/langchaingo/llms/ollama"
+	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"os"
 	"testing"
 )
-
-type TestEmbedder struct {
-}
-
-func (de TestEmbedder) EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error) {
-	return [][]float32{}, nil
-}
-func (de TestEmbedder) EmbedQuery(ctx context.Context, text string) ([]float32, error) {
-	return []float32{}, nil
-}
 
 func getEnvVariables(t *testing.T) (string, string, string, string, string, string, string) {
 	t.Helper()
@@ -55,13 +48,6 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 }
 
 func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
-	os.Setenv("ALLOYDB_USERNAME", "postgres")
-	os.Setenv("ALLOYDB_PASSWORD", "alloydbtest")
-	os.Setenv("ALLOYDB_DATABASE", "postgres")
-	os.Setenv("ALLOYDB_PROJECT_ID", "devshop-mosaic-11010494")
-	os.Setenv("ALLOYDB_REGION", "us-central1")
-	os.Setenv("ALLOYDB_INSTANCE", "senseai-alloydb-cluster-primary")
-	os.Setenv("ALLOYDB_CLUSTER", "senseai-alloydb-cluster")
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 	ctx := context.Background()
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
@@ -83,7 +69,17 @@ func setVectoreStore(t *testing.T) (alloydb.VectorStore, error) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	vs, err := alloydb.NewVectorStore(ctx, pgEngine, TestEmbedder{}, "items")
+	llmm, err := ollama.New(
+		ollama.WithModel("llama3"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := embeddings.NewEmbedder(llmm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, "items")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,12 +105,12 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	idx := vs.NewBaseIndex("testindex", "hnsw", 1, []string{})
-	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false)
+	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{})
+	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = vs.DropVectorIndex(ctx, "testindex")
+	err = vs.DropVectorIndex(ctx, "testindex", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,8 +122,8 @@ func TestIsValidIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	idx := vs.NewBaseIndex("testindex", "hnsw", 1, []string{})
-	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false)
+	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{})
+	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +132,71 @@ func TestIsValidIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Println(isValid)
-	err = vs.DropVectorIndex(ctx, "testindex")
+	err = vs.DropVectorIndex(ctx, "testindex", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAddDocuments(t *testing.T) {
+	vs, err := setVectoreStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	_, err = vs.AddDocuments(ctx, []schema.Document{
+		{
+			PageContent: "Tokyo",
+			Metadata: map[string]any{
+				"population": 38,
+				"area":       2190,
+			},
+		},
+		{
+			PageContent: "Paris",
+			Metadata: map[string]any{
+				"population": 11,
+				"area":       105,
+			},
+		},
+		{
+			PageContent: "London",
+			Metadata: map[string]any{
+				"population": 9.5,
+				"area":       1572,
+			},
+		},
+		{
+			PageContent: "Santiago",
+			Metadata: map[string]any{
+				"population": 6.9,
+				"area":       641,
+			},
+		},
+		{
+			PageContent: "Buenos Aires",
+			Metadata: map[string]any{
+				"population": 15.5,
+				"area":       203,
+			},
+		},
+		{
+			PageContent: "Rio de Janeiro",
+			Metadata: map[string]any{
+				"population": 13.7,
+				"area":       1200,
+			},
+		},
+		{
+			PageContent: "Sao Paulo",
+			Metadata: map[string]any{
+				"population": 22.6,
+				"area":       1523,
+			},
+		},
+	})
+
 	if err != nil {
 		t.Fatal(err)
 	}
