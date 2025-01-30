@@ -41,6 +41,12 @@ type BaseIndex struct {
 	partialIndexes   []string
 }
 
+type SearchDocument struct {
+	Content            string
+	Langchain_metadata string
+	Distance           float32
+}
+
 var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
@@ -175,21 +181,22 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	return documents, nil
 }
 
-func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]map[string]any, error) {
+func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]SearchDocument, error) {
 	rows, err := vs.engine.Pool.Query(ctx, stmt, vs.k)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute similar search query: %w", err)
 	}
 	defer rows.Close()
 
-	var results []map[string]any
+	var results []SearchDocument
 	for rows.Next() {
-		resultMap := make(map[string]any)
-		err := rows.Scan(&resultMap)
+		doc := SearchDocument{}
+
+		err = rows.Scan(&doc.Content, &doc.Langchain_metadata, &doc.Distance)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan result: %w", err)
 		}
-		results = append(results, resultMap)
+		results = append(results, doc)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
@@ -197,34 +204,21 @@ func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]map[
 	return results, nil
 }
 
-func (vs *VectorStore) processResultsToDocuments(results []map[string]any) ([]schema.Document, error) {
+func (vs *VectorStore) processResultsToDocuments(results []SearchDocument) ([]schema.Document, error) {
 	var documents []schema.Document
-	for _, row := range results {
-		metadata := make(map[string]any)
-		if vs.metadataJsonColumn != "" && row[vs.metadataJsonColumn] != nil {
-			if jsonBytes, ok := row[vs.metadataJsonColumn].([]byte); ok {
-				if err := json.Unmarshal(jsonBytes, &metadata); err != nil {
-					return nil, fmt.Errorf("failed to unmarshal metadata JSON: %w", err)
-				}
-			} else {
-				return nil, fmt.Errorf("expected byte slice for metadata JSON, but got %T", row[vs.metadataJsonColumn])
-			}
+	for _, result := range results {
+
+		mapMetadata := map[string]any{}
+		err := json.Unmarshal([]byte(result.Langchain_metadata), &mapMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal langchain metadata: %w", err)
 		}
-		for _, col := range vs.metadataColumns {
-			if val, ok := row[col]; ok {
-				metadata[col] = val
-			}
+		doc := schema.Document{
+			PageContent: result.Content,
+			Metadata:    mapMetadata,
+			Score:       result.Distance,
 		}
-		document := schema.Document{
-			PageContent: row[vs.contentColumn].(string),
-			Metadata:    metadata,
-		}
-		distance, ok := row["distance"].(float64)
-		if !ok {
-			return nil, fmt.Errorf("expected distance to be a floating value, but got %T", row["distance"])
-		}
-		document.Score = float32(distance)
-		documents = append(documents, document)
+		documents = append(documents, doc)
 	}
 	return documents, nil
 }
