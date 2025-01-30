@@ -36,6 +36,7 @@ type VectorStore struct {
 type BaseIndex struct {
 	name             string
 	indexType        string
+	options          any
 	distanceStrategy distanceStrategy
 	partialIndexes   []string
 }
@@ -229,7 +230,7 @@ func (vs *VectorStore) processResultsToDocuments(results []map[string]any) ([]sc
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool, indexOpts ...int) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool) error {
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name, overwrite)
 	}
@@ -244,7 +245,11 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	params := fmt.Sprintf("WITH %s", index.indexOptions(indexOpts))
+	optsString, err := index.indexOptions()
+	if err != nil {
+		return fmt.Errorf("indexOptions error: %w", err)
+	}
+	params := fmt.Sprintf("WITH %s", optsString)
 
 	if name == "" {
 		if index.name == "" {
@@ -261,7 +266,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
 		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
-	_, err := vs.engine.Pool.Exec(ctx, stmt)
+	_, err = vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute creation of index: %w", err)
 	}

@@ -1,8 +1,8 @@
 package alloydb
 
 import (
+	"errors"
 	"fmt"
-	"strconv"
 )
 
 // defaultDistanceStrategy is the default strategy used if none is provided
@@ -50,44 +50,61 @@ func (i InnerProduct) searchFunction() string {
 	return "vector_ip_ops"
 }
 
+// hnswOptions holds the configuration for the hnsw index.
+type hnswOptions struct {
+	m              int
+	efConstruction int
+}
+
+// ivfflatOptions holds the configuration for the ivfflat index.
+type ivfflatOptions struct {
+	lists int
+}
+
+// ivfOptions holds the configuration for the ivf index.
+type ivfOptions struct {
+	lists     int
+	quantizer string
+}
+
+// scannOptions holds the configuration for the ScaNN index.
+type scannOptions struct {
+	numLeaves int
+	quantizer string
+}
+
 // indexOptions returns the specific options for the index based on the index type
-func (index *BaseIndex) indexOptions(indexOpts []int) string {
+func (index *BaseIndex) indexOptions() (string, error) {
 	switch index.indexType {
 	case "hnsw":
-		{
-			m := 16
-			ef_construction := 64
-			if len(indexOpts) == 2 {
-				m = indexOpts[0]
-				ef_construction = indexOpts[1]
-			}
-			return fmt.Sprintf("(m = %s, ef_construction = %s)", strconv.Itoa(m), strconv.Itoa(ef_construction))
+		opts, ok := index.options.(hnswOptions)
+		if !ok {
+			return "", errors.New("invalid HNSW options")
 		}
+		return fmt.Sprintf("(m = %d, ef_construction = %d)", opts.m, opts.efConstruction), nil
+
 	case "ivfflat":
-		{
-			lists := 100
-			if len(indexOpts) == 1 {
-				lists = indexOpts[0]
-			}
-			return fmt.Sprintf("(lists = %s)", strconv.Itoa(lists))
+		opts, ok := index.options.(ivfflatOptions)
+		if !ok {
+			return "", errors.New("invalid IVFFlat options")
 		}
+		return fmt.Sprintf("(lists = %d)", opts.lists), nil
+
 	case "ivf":
-		{
-			lists := 100
-			if len(indexOpts) == 1 {
-				lists = indexOpts[0]
-			}
-			return fmt.Sprintf("(lists = %s, quantizer = sq8)", strconv.Itoa(lists))
+		opts, ok := index.options.(ivfOptions)
+		if !ok {
+			return "", errors.New("invalid IVF options")
 		}
+		return fmt.Sprintf("(lists = %d, quantizer = %s)", opts.lists, opts.quantizer), nil
+
 	case "ScaNN":
-		{
-			numLeaves := 5
-			if len(indexOpts) == 1 {
-				numLeaves = indexOpts[0]
-			}
-			return fmt.Sprintf("(num_leaves = %s, quantizer = sq8)", strconv.Itoa(numLeaves))
+		opts, ok := index.options.(scannOptions)
+		if !ok {
+			return "", errors.New("invalid ScaNN options")
 		}
+		return fmt.Sprintf("(num_leaves = %d, quantizer = %s)", opts.numLeaves, opts.quantizer), nil
+
 	default:
-		return ""
+		return "", fmt.Errorf("invalid index options of type: %s and options: %v", index.indexType, index.options)
 	}
 }
