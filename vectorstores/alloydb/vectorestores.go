@@ -149,9 +149,9 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 		return nil, fmt.Errorf("failed embed query: %w", err)
 	}
 	operator := vs.distanceStrategy.operator()
-	searchFunction := vs.distanceStrategy.searchFunction()
+	searchFunction := vs.distanceStrategy.similaritySearchFunction()
 
-	columns := append(vs.metadataColumns, vs.idColumn, vs.contentColumn, vs.embeddingColumn)
+	columns := append(vs.metadataColumns, vs.contentColumn)
 	if vs.metadataJsonColumn != "" {
 		columns = append(columns, vs.metadataJsonColumn)
 	}
@@ -161,10 +161,10 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
 	stmt := fmt.Sprintf(`
-        SELECT %s, %s(%s, $1) AS distance FROM "%s"."%s" %s ORDER BY %s %s $1 LIMIT $2;`,
-		columnNames, searchFunction, vs.embeddingColumn, vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator)
+        SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $2;`,
+		columnNames, searchFunction, vectorToString(embedding), vs.embeddingColumn, vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vectorToString(embedding))
 
-	results, err := vs.executeSQLQuery(ctx, stmt, embedding)
+	results, err := vs.executeSQLQuery(ctx, stmt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute sql query: %w", err)
 	}
@@ -175,8 +175,8 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	return documents, nil
 }
 
-func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string, embedding []float32) ([]map[string]any, error) {
-	rows, err := vs.engine.Pool.Query(ctx, stmt, embedding, vs.k)
+func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]map[string]any, error) {
+	rows, err := vs.engine.Pool.Query(ctx, stmt, vs.k)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute similar search query: %w", err)
 	}
