@@ -36,7 +36,7 @@ type VectorStore struct {
 type BaseIndex struct {
 	name             string
 	indexType        string
-	options          any
+	options          Index
 	distanceStrategy distanceStrategy
 	partialIndexes   []string
 }
@@ -318,12 +318,13 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	return indexnameFromDb == indexName, nil
 }
 
-func (vs *VectorStore) NewBaseIndex(indexName, indexType string, strategy distanceStrategy, partialIndexes []string) BaseIndex {
+func (vs *VectorStore) NewBaseIndex(indexName, indexType string, strategy distanceStrategy, partialIndexes []string, opts Index) BaseIndex {
 	return BaseIndex{
 		name:             indexName,
 		indexType:        indexType,
 		distanceStrategy: strategy,
 		partialIndexes:   partialIndexes,
+		options:          opts,
 	}
 }
 

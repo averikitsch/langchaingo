@@ -1,9 +1,6 @@
 package alloydb
 
-import (
-	"errors"
-	"fmt"
-)
+import "fmt"
 
 // defaultDistanceStrategy is the default strategy used if none is provided
 var defaultDistanceStrategy = CosineDistance{}
@@ -13,6 +10,10 @@ type distanceStrategy interface {
 	operator() string
 	searchFunction() string
 	similaritySearchFunction() string
+}
+
+type Index interface {
+	Options() string
 }
 
 type Euclidean struct{}
@@ -66,60 +67,45 @@ func (i InnerProduct) similaritySearchFunction() string {
 }
 
 // hnswOptions holds the configuration for the hnsw index.
-type hnswOptions struct {
-	m              int
-	efConstruction int
+type HnswOptions struct {
+	M              int
+	EfConstruction int
+}
+
+func (h HnswOptions) Options() string {
+	return fmt.Sprintf("(m = %d, ef_construction = %d)", h.M, h.EfConstruction)
 }
 
 // ivfflatOptions holds the configuration for the ivfflat index.
-type ivfflatOptions struct {
-	lists int
+type IvfflatOptions struct {
+	Lists int
+}
+
+func (i IvfflatOptions) Options() string {
+	return fmt.Sprintf("(lists = %d)", i.Lists)
 }
 
 // ivfOptions holds the configuration for the ivf index.
-type ivfOptions struct {
-	lists     int
-	quantizer string
+type IvfOptions struct {
+	Lists     int
+	Quantizer string
+}
+
+func (i IvfOptions) Options() string {
+	return fmt.Sprintf("(lists = %d, quantizer = %s)", i.Lists, i.Quantizer)
 }
 
 // scannOptions holds the configuration for the ScaNN index.
-type scannOptions struct {
-	numLeaves int
-	quantizer string
+type ScannOptions struct {
+	NumLeaves int
+	Quantizer string
+}
+
+func (s ScannOptions) Options() string {
+	return fmt.Sprintf("(num_leaves = %d, quantizer = %s)", s.NumLeaves, s.Quantizer)
 }
 
 // indexOptions returns the specific options for the index based on the index type
 func (index *BaseIndex) indexOptions() (string, error) {
-	switch index.indexType {
-	case "hnsw":
-		opts, ok := index.options.(hnswOptions)
-		if !ok {
-			return "", errors.New("invalid HNSW options")
-		}
-		return fmt.Sprintf("(m = %d, ef_construction = %d)", opts.m, opts.efConstruction), nil
-
-	case "ivfflat":
-		opts, ok := index.options.(ivfflatOptions)
-		if !ok {
-			return "", errors.New("invalid IVFFlat options")
-		}
-		return fmt.Sprintf("(lists = %d)", opts.lists), nil
-
-	case "ivf":
-		opts, ok := index.options.(ivfOptions)
-		if !ok {
-			return "", errors.New("invalid IVF options")
-		}
-		return fmt.Sprintf("(lists = %d, quantizer = %s)", opts.lists, opts.quantizer), nil
-
-	case "ScaNN":
-		opts, ok := index.options.(scannOptions)
-		if !ok {
-			return "", errors.New("invalid ScaNN options")
-		}
-		return fmt.Sprintf("(num_leaves = %d, quantizer = %s)", opts.numLeaves, opts.quantizer), nil
-
-	default:
-		return "", fmt.Errorf("invalid index options of type: %s and options: %v", index.indexType, index.options)
-	}
+	return index.options.Options(), nil
 }
