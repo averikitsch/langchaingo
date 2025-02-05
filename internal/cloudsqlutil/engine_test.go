@@ -3,8 +3,78 @@ package cloudsqlutil
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 )
+
+func getEnvVariables(t *testing.T) (string, string, string, string, string, string) {
+	t.Helper()
+
+	username := os.Getenv("CLOUDSQL_USERNAME")
+	if username == "" {
+		t.Skip("CLOUDSQL_USERNAME environment variable not set")
+	}
+	password := os.Getenv("CLOUDSQL_PASSWORD")
+	if password == "" {
+		t.Skip("CLOUDSQL_PASSWORD environment variable not set")
+	}
+	database := os.Getenv("CLOUDSQL_DATABASE")
+	if database == "" {
+		t.Skip("CLOUDSQL_DATABASE environment variable not set")
+	}
+	projectID := os.Getenv("CLOUDSQL_PROJECT_ID")
+	if projectID == "" {
+		t.Skip("CLOUSQL_PROJECT_ID environment variable not set")
+	}
+	region := os.Getenv("CLOUDSQL_REGION")
+	if region == "" {
+		t.Skip("CLOUDSQL_REGION environment variable not set")
+	}
+	instance := os.Getenv("CLOUDSQL_INSTANCE")
+	if instance == "" {
+		t.Skip("CLOUDSQL_INSTANCE environment variable not set")
+	}
+
+	return username, password, database, projectID, region, instance
+}
+
+func setEngine(t *testing.T) (PostgresEngine, error) {
+	username, password, database, projectID, region, instance := getEnvVariables(t)
+	ctx := context.Background()
+	pgEngine, err := NewPostgresEngine(ctx,
+		WithUser(username),
+		WithPassword(password),
+		WithDatabase(database),
+		WithCloudSQLInstance(projectID, region, instance),
+	)
+	if err != nil {
+		t.Fatal("Could not set Engine: ", err)
+	}
+
+	return *pgEngine, nil
+}
+
+func TestPingToDB(t *testing.T) {
+	engine, err := setEngine(t)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+
+	if err = engine.Pool.Ping(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreatePool(t *testing.T) {
+	username, password, database, projectID, region, instance := getEnvVariables(t)
+	ctx := context.Background()
+	_, err := createPool(ctx, engineConfig{projectID: projectID, instance: instance, database: database, user: username, region: region, password: password}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestGetUser(t *testing.T) {
 	t.Parallel()
