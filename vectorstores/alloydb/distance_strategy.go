@@ -78,7 +78,7 @@ func (h HNSWOptions) Options() string {
 
 // IVFFlatOptions holds the configuration for the ivfflat index.
 type IVFFlatOptions struct {
-	Lists int
+	    Lists int
 }
 
 func (i IVFFlatOptions) Options() string {
