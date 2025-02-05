@@ -36,8 +36,15 @@ type VectorStore struct {
 type BaseIndex struct {
 	name             string
 	indexType        string
+	options          Index
 	distanceStrategy distanceStrategy
 	partialIndexes   []string
+}
+
+type SearchDocument struct {
+	Content            string
+	Langchain_metadata string
+	Distance           float32
 }
 
 var _ vectorstores.VectorStore = &VectorStore{}
@@ -148,22 +155,22 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 		return nil, fmt.Errorf("failed embed query: %w", err)
 	}
 	operator := vs.distanceStrategy.operator()
-	searchFunction := vs.distanceStrategy.searchFunction()
+	searchFunction := vs.distanceStrategy.similaritySearchFunction()
 
-	columns := append(vs.metadataColumns, vs.idColumn, vs.contentColumn, vs.embeddingColumn)
+	columns := append(vs.metadataColumns, vs.contentColumn)
 	if vs.metadataJsonColumn != "" {
 		columns = append(columns, vs.metadataJsonColumn)
 	}
-	columnNames := `" ` + strings.Join(columns, `", "`) + `"`
+	columnNames := strings.Join(columns, `, `)
 	whereClause := ""
-	if opts.Filters != "" {
+	if opts.Filters != nil {
 		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
 	stmt := fmt.Sprintf(`
-        SELECT %s, %s(%s, $1) AS distance FROM "%s"."%s" %s ORDER BY %s %s $1 LIMIT $2;`,
-		columnNames, searchFunction, vs.embeddingColumn, vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator)
+        SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
+		columnNames, searchFunction, vs.embeddingColumn, vectorToString(embedding), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vectorToString(embedding))
 
-	results, err := vs.executeSQLQuery(ctx, stmt, embedding)
+	results, err := vs.executeSQLQuery(ctx, stmt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute sql query: %w", err)
 	}
@@ -174,21 +181,22 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	return documents, nil
 }
 
-func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string, embedding []float32) ([]map[string]any, error) {
-	rows, err := vs.engine.Pool.Query(ctx, stmt, embedding, vs.k)
+func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]SearchDocument, error) {
+	rows, err := vs.engine.Pool.Query(ctx, stmt, vs.k)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute similar search query: %w", err)
 	}
 	defer rows.Close()
 
-	var results []map[string]any
+	var results []SearchDocument
 	for rows.Next() {
-		resultMap := make(map[string]any)
-		err := rows.Scan(&resultMap)
+		doc := SearchDocument{}
+
+		err = rows.Scan(&doc.Content, &doc.Langchain_metadata, &doc.Distance)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan result: %w", err)
 		}
-		results = append(results, resultMap)
+		results = append(results, doc)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
@@ -196,40 +204,27 @@ func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string, embeddi
 	return results, nil
 }
 
-func (vs *VectorStore) processResultsToDocuments(results []map[string]any) ([]schema.Document, error) {
+func (vs *VectorStore) processResultsToDocuments(results []SearchDocument) ([]schema.Document, error) {
 	var documents []schema.Document
-	for _, row := range results {
-		metadata := make(map[string]any)
-		if vs.metadataJsonColumn != "" && row[vs.metadataJsonColumn] != nil {
-			if jsonBytes, ok := row[vs.metadataJsonColumn].([]byte); ok {
-				if err := json.Unmarshal(jsonBytes, &metadata); err != nil {
-					return nil, fmt.Errorf("failed to unmarshal metadata JSON: %w", err)
-				}
-			} else {
-				return nil, fmt.Errorf("expected byte slice for metadata JSON, but got %T", row[vs.metadataJsonColumn])
-			}
+	for _, result := range results {
+
+		mapMetadata := map[string]any{}
+		err := json.Unmarshal([]byte(result.Langchain_metadata), &mapMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal langchain metadata: %w", err)
 		}
-		for _, col := range vs.metadataColumns {
-			if val, ok := row[col]; ok {
-				metadata[col] = val
-			}
+		doc := schema.Document{
+			PageContent: result.Content,
+			Metadata:    mapMetadata,
+			Score:       result.Distance,
 		}
-		document := schema.Document{
-			PageContent: row[vs.contentColumn].(string),
-			Metadata:    metadata,
-		}
-		distance, ok := row["distance"].(float64)
-		if !ok {
-			return nil, fmt.Errorf("expected distance to be a floating value, but got %T", row["distance"])
-		}
-		document.Score = float32(distance)
-		documents = append(documents, document)
+		documents = append(documents, doc)
 	}
 	return documents, nil
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool, indexOpts ...int) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool) error {
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name, overwrite)
 	}
@@ -244,7 +239,11 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	params := fmt.Sprintf("WITH %s", index.indexOptions(indexOpts))
+	optsString, err := index.indexOptions()
+	if err != nil {
+		return fmt.Errorf("indexOptions error: %w", err)
+	}
+	params := fmt.Sprintf("WITH %s", optsString)
 
 	if name == "" {
 		if index.name == "" {
@@ -261,7 +260,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
 		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
-	_, err := vs.engine.Pool.Exec(ctx, stmt)
+	_, err = vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute creation of index: %w", err)
 	}
@@ -319,12 +318,13 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	return indexnameFromDb == indexName, nil
 }
 
-func (vs *VectorStore) NewBaseIndex(indexName, indexType string, strategy distanceStrategy, partialIndexes []string) BaseIndex {
+func (vs *VectorStore) NewBaseIndex(indexName, indexType string, strategy distanceStrategy, partialIndexes []string, opts Index) BaseIndex {
 	return BaseIndex{
 		name:             indexName,
 		indexType:        indexType,
 		distanceStrategy: strategy,
 		partialIndexes:   partialIndexes,
+		options:          opts,
 	}
 }
 
