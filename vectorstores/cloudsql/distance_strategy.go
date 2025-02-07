@@ -66,6 +66,16 @@ func (i InnerProduct) similaritySearchFunction() string {
 	return "inner_product"
 }
 
+// HNSWOptions holds the configuration for the hnsw index.
+type HNSWOptions struct {
+	M              int
+	EfConstruction int
+}
+
+func (h HNSWOptions) Options() string {
+	return fmt.Sprintf("(m = %d, ef_construction = %d)", h.M, h.EfConstruction)
+}
+
 // IVFFlatOptions holds the configuration for the ivfflat index.
 type IVFFlatOptions struct {
 	Lists int
@@ -83,16 +93,6 @@ type IVFOptions struct {
 
 func (i IVFOptions) Options() string {
 	return fmt.Sprintf("(lists = %d, quantizer = %s)", i.Lists, i.Quantizer)
-}
-
-// SCANNOptions holds the configuration for the ScaNN index.
-type SCANNOptions struct {
-	NumLeaves int
-	Quantizer string
-}
-
-func (s SCANNOptions) Options() string {
-	return fmt.Sprintf("(num_leaves = %d, quantizer = %s)", s.NumLeaves, s.Quantizer)
 }
 
 // indexOptions returns the specific options for the index based on the index type
