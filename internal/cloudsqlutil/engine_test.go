@@ -46,11 +46,8 @@ func setEngine(t *testing.T, ctx context.Context) (PostgresEngine, error) {
 		WithDatabase(database),
 		WithCloudSQLInstance(projectID, region, instance),
 	)
-	if err != nil {
-		t.Fatal("Could not set Engine: ", err)
-	}
 
-	return *pgEngine, nil
+	return *pgEngine, err
 }
 
 func TestPingToDB(t *testing.T) {
