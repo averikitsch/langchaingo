@@ -50,7 +50,7 @@ func setEngine(t *testing.T, ctx context.Context) (PostgresEngine, error) {
 	return *pgEngine, err
 }
 
-func TestPingToDB(t *testing.T) {
+func TestNewPostgresEngine(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	engine, err := setEngine(t, ctx)
