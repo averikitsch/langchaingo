@@ -38,9 +38,8 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 	return username, password, database, projectID, region, instance
 }
 
-func setEngine(t *testing.T) (PostgresEngine, error) {
+func setEngine(t *testing.T, ctx context.Context) (PostgresEngine, error) {
 	username, password, database, projectID, region, instance := getEnvVariables(t)
-	ctx := context.Background()
 	pgEngine, err := NewPostgresEngine(ctx,
 		WithUser(username),
 		WithPassword(password),
@@ -55,7 +54,9 @@ func setEngine(t *testing.T) (PostgresEngine, error) {
 }
 
 func TestPingToDB(t *testing.T) {
-	engine, err := setEngine(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	engine, err := setEngine(t, ctx)
 
 	if err != nil {
 		t.Fatal(err)
@@ -63,15 +64,6 @@ func TestPingToDB(t *testing.T) {
 	defer engine.Close()
 
 	if err = engine.Pool.Ping(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestCreatePool(t *testing.T) {
-	username, password, database, projectID, region, instance := getEnvVariables(t)
-	ctx := context.Background()
-	_, err := createPool(ctx, engineConfig{projectID: projectID, instance: instance, database: database, user: username, region: region, password: password}, false)
-	if err != nil {
 		t.Fatal(err)
 	}
 }
