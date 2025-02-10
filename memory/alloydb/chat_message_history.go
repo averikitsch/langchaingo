@@ -167,7 +167,11 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 		c.schemaName, c.tableName)
 
 	for _, message := range messages {
-		b.Queue(query, c.sessionID, message.GetContent(), message.GetType())
+		data, err := json.Marshal(message.GetContent())
+		if err != nil {
+			return fmt.Errorf("failed to serialize content to JSON: %w", err)
+		}
+		b.Queue(query, c.sessionID, data, message.GetType())
 	}
 	return c.engine.Pool.SendBatch(ctx, b).Close()
 }
