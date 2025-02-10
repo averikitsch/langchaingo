@@ -43,11 +43,11 @@ func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngin
 	}
 	cmh, err = applyChatMessageHistoryOptions(cmh, opts...)
 	if err != nil {
-		return ChatMessageHistory{}, fmt.Errorf("applyChatMessageHistoryOptions() unable to apply provided options: %w", err)
+		return ChatMessageHistory{}, fmt.Errorf("unable to apply provided options for chat message history: %w", err)
 	}
 	err = cmh.validateTable(ctx)
 	if err != nil {
-		return ChatMessageHistory{}, fmt.Errorf("validateTable() error validating table '%s' in schema '%s': %w", tableName, cmh.schemaName, err)
+		return ChatMessageHistory{}, fmt.Errorf("error validating table '%s' in schema '%s': %w", tableName, cmh.schemaName, err)
 	}
 	return cmh, nil
 }
