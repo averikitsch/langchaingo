@@ -43,11 +43,11 @@ func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngin
 	}
 	cmh, err = applyChatMessageHistoryOptions(cmh, opts...)
 	if err != nil {
-		return ChatMessageHistory{}, fmt.Errorf("applyChatMessageHistoryOptions(): %w", err)
+		return ChatMessageHistory{}, fmt.Errorf("applyChatMessageHistoryOptions() unable to apply provided options: %w", err)
 	}
 	err = cmh.validateTable(ctx)
 	if err != nil {
-		return ChatMessageHistory{}, fmt.Errorf("validateTable(): %w", err)
+		return ChatMessageHistory{}, fmt.Errorf("validateTable() error validating table '%s' in schema '%s': %w", tableName, cmh.schemaName, err)
 	}
 	return cmh, nil
 }
@@ -62,25 +62,50 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	var exists bool
 	err := c.engine.Pool.QueryRow(ctx, tableExistsQuery).Scan(&exists)
 	if err != nil {
-		return fmt.Errorf("error validating table %s: %w", c.tableName, err)
+		return fmt.Errorf("error validating the existance of table '%s' in schema '%s': %w", c.tableName, c.schemaName, err)
 	}
 	if !exists {
 		return fmt.Errorf("table '%s' does not exist in schema '%s'", c.tableName, c.schemaName)
 	}
 
-	requiredColumns := []string{"id", "session_id", "data", "type"}
-	for _, reqColumn := range requiredColumns {
-		columnExistsQuery := fmt.Sprintf(`SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns 
-			WHERE table_schema = '%s' AND table_name = '%s' AND column_name = '%s'
-		);`, c.schemaName, c.tableName, reqColumn)
-		var columnExists bool
-		err := c.engine.Pool.QueryRow(ctx, columnExistsQuery).Scan(&columnExists)
-		if err != nil {
-			return fmt.Errorf("error scanning columns from table %s: %w", c.tableName, err)
+	// Required columns with their types
+	requiredColumns := map[string]string{
+		"id":         "integer",
+		"session_id": "text",
+		"data":       "json",
+		"type":       "text",
+	}
+
+	var columns = make(map[string]string)
+
+	// Get the columns from the table
+	columnsQuery := fmt.Sprintf(`
+    	SELECT column_name, data_type
+    	FROM information_schema.columns
+   	 	WHERE table_schema = '%s' AND table_name = '%s';`, c.schemaName, c.tableName)
+
+	rows, err := c.engine.Pool.Query(ctx, columnsQuery)
+	if err != nil {
+		return fmt.Errorf("error fetching columns from table '%s' in schema '%s': %w", c.tableName, c.schemaName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var columnName, dataType string
+		if err := rows.Scan(&columnName, &dataType); err != nil {
+			return fmt.Errorf("error scanning column names from table '%s' in schema '%s': %w", c.tableName, c.schemaName, err)
 		}
-		if !columnExists {
-			return fmt.Errorf("column '%s' is missing in table '%s'. Expected columns: %v", reqColumn, c.tableName, requiredColumns)
+		columns[columnName] = dataType
+	}
+
+	// Validate column names and types
+	for reqColumn, expectedType := range requiredColumns {
+		actualType, found := columns[reqColumn]
+		if !found {
+			return fmt.Errorf("error, column '%s' is missing in table '%s'. Expected columns: %v", reqColumn, c.tableName, requiredColumns)
+		}
+		if actualType != expectedType {
+			return fmt.Errorf("error, column '%s' in table '%s' has type '%s', but expected type '%s'", reqColumn, c.tableName, actualType, expectedType)
 		}
 	}
 	return nil
