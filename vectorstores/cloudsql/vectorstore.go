@@ -52,9 +52,9 @@ func NewVectorStore(ctx context.Context, engine cloudsqlutil.PostgresEngine, emb
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string) error {
 	if index.indexType == "exactnearestneighbor" {
-		return vs.DropVectorIndex(ctx, name, overwrite)
+		return vs.DropVectorIndex(ctx, name)
 	}
 
 	filter := ""
@@ -74,23 +74,15 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 		name = index.name
 	}
 
-	concurrentlyStr := ""
-	if concurrently {
-		concurrentlyStr = "CONCURRENTLY"
-	}
-
 	function := index.distanceStrategy.searchFunction()
-	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
-		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
+	stmt := fmt.Sprintf("CREATE INDEX %s ON %s.%s USING %s (%s %s) %s %s",
+		name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
 	_, err = vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute creation of index: %w", err)
 	}
-	_, err = vs.engine.Pool.Exec(ctx, "COMMIT")
-	if err != nil {
-		return fmt.Errorf("failed to commit index: %w", err)
-	}
+
 	return nil
 }
 
