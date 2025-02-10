@@ -52,7 +52,7 @@ func NewVectorStore(ctx context.Context, engine cloudsqlutil.PostgresEngine, emb
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently bool) error {
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name)
 	}
@@ -74,9 +74,14 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 		name = index.name
 	}
 
+	concurrentlyStr := ""
+	if concurrently {
+		concurrentlyStr = "CONCURRENTLY"
+	}
+
 	function := index.distanceStrategy.searchFunction()
-	stmt := fmt.Sprintf("CREATE INDEX %s ON %s.%s USING %s (%s %s) %s %s",
-		name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
+	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
+		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
 	_, err = vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
