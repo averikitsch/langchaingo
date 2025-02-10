@@ -3,9 +3,16 @@ package alloydbutil
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
 	"testing"
 )
+
+type TestEngine struct {
+	eg    PostgresEngine
+	error error
+}
 
 func getEnvVariables(t *testing.T) (string, string, string, string, string, string, string) {
 	t.Helper()
@@ -42,32 +49,56 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 	return username, password, database, projectID, region, instance, cluster
 }
 
-func setEngine(t *testing.T, ctx context.Context) (PostgresEngine, error) {
-	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
-
-	pgEngine, err := NewPostgresEngine(ctx,
-		WithUser(username),
-		WithPassword(password),
-		WithDatabase(database),
-		WithAlloyDBInstance(projectID, region, cluster, instance),
-	)
-
-	return *pgEngine, err
-}
-
 func TestNewPostgresEngine(t *testing.T) {
+	t.Parallel()
+	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	engine, err := setEngine(t, ctx)
-
-	if err != nil {
-		t.Fatal(err)
+	testEngines := []TestEngine{
+		newTestEngine(ctx, WithUser(username),
+			WithPassword(password),
+			WithDatabase(database),
+			WithAlloyDBInstance(projectID, region, cluster, instance)),
+		newTestEngine(ctx,
+			WithUser(""),
+			WithPassword(""),
+			WithDatabase(database),
+			WithAlloyDBInstance(projectID, region, cluster, instance),
+		),
+		newTestEngine(ctx,
+			WithUser(username),
+			WithPassword(password),
+			WithDatabase(database),
+			WithAlloyDBInstance(projectID, region, cluster, ""),
+		),
+		newTestEngine(ctx,
+			WithUser(username),
+			WithPassword(""),
+			WithDatabase(database),
+			WithAlloyDBInstance(projectID, region, cluster, instance),
+		),
 	}
-	defer engine.Close()
 
-	if err = engine.Pool.Ping(ctx); err != nil {
-		t.Fatal(err)
+	for index, engine := range testEngines {
+		t.Run(fmt.Sprintf("Engine No. %d", index+1), func(t *testing.T) {
+			defer engine.eg.Close()
+			t.Parallel()
+			if index == 0 && engine.error == nil {
+				if err := engine.eg.Pool.Ping(ctx); err != nil {
+					t.Fatal("Engine was created but failed to ping the DB: ", err)
+				}
+			} else {
+				if engine.error == nil {
+					t.Errorf("Engine %s should have failed but didn't", strconv.Itoa(index))
+				}
+			}
+		})
 	}
+}
+
+func newTestEngine(ctx context.Context, opts ...Option) TestEngine {
+	pgEngine, err := NewPostgresEngine(ctx, opts...)
+	return TestEngine{*pgEngine, err}
 }
 
 func TestGetUser(t *testing.T) {
