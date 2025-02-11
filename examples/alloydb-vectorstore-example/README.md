@@ -1,6 +1,6 @@
 # Google AlloyDB Vector Store Example
 
-This example demonstrates how to use AlloyDB along with pgvector, a PostgreSQL extension for vector similarity search, with OpenAI embeddings in a Go application. It showcases the integration of langchain-go, OpenAI's API, and pgvector to create a powerful vector database for similarity searches.
+This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google.com/products/alloydb) for vector similarity search with LangChain in Go.
 
 ## What This Example Does
 
