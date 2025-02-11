@@ -7,12 +7,12 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 1. **Creates a Alloydb VectorStore:**
    - Establishes a connection to the AlloyDB database.
    - Initializes the `alloydb.PostgresEngine` object.
-   - Initializes a `alloydb.VectorStore` objects using OpenAI embeddings.
+   - Initializes a `alloydb.VectorStore` objects using VertexAI embeddings.
    - Requires the environment variables to be set for it to work.
 
-2. **Initializes OpenAI Embeddings:**
-    - Creates an embeddings client using the OpenAI API.
-    - Requires an OpenAI API key to be set as an environment variable.
+2. **Initializes VertexAI Embeddings:**
+    - Creates an embeddings client using the VertexAI API.
+    - Requires an VertexAI API key to be set as an environment variable.
 
 3. **Adds Sample Documents:**
     - Inserts several documents (cities) with metadata into the vector store.
@@ -44,7 +44,7 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 
 ## Key Features
 
-- Integration of AlloyDB vectorstore with OpenAI embeddings
+- Integration of AlloyDB vectorstore with VertexAI embeddings
 - Similarity search
 - Adding documents into AlloyDB with pgvector extension
 
