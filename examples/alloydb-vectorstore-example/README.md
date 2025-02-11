@@ -19,16 +19,14 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
     - Each document includes the city name, population, and area.
 
 4. **Performs Similarity Searches:**
-    - Demonstrates various types of similarity searches:
-      a. Basic search for documents similar to "japan".
-      b. Search for South American cities with a score threshold.
-      c. Search with both score threshold and metadata filtering.
+    - Basic search for documents similar to "Japan".
 
 ## How to Run the Example
 
-1. Set your OpenAI API key and your environment variables:
+1. Set your Google VertexAI VERTEX_PROJECT, VERTEX_LOCATION and your environment variables (These can be found at [AlloyDB Instance](https://console.cloud.google.com/alloydb/clusters)):
    ```
-   export OPENAI_API_KEY=<your key>
+   export VERTEX_PROJECT=<your vertex project>
+   export VERTEX_LOCATION=<your vertex location>
    export ALLOYDB_USERNAME=<your user>
    export ALLOYDB_PASSWORD=<your password>
    export ALLOYDB_DATABASE=<your database>
