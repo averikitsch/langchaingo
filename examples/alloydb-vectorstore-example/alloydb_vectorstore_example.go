@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/alloydbutil"
-	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/tmc/langchaingo/llms/googleai/vertex"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"log"
 	"os"
 )
 
-func getEnvVariables() (string, string, string, string, string, string, string, string) {
+func getEnvVariables() (string, string, string, string, string, string, string, string, string, string) {
 	// Requires environment variable ALLOYDB_USERNAME to be set.
 	username := os.Getenv("ALLOYDB_USERNAME")
 	// Requires environment variable ALLOYDB_PASSWORD to be set.
@@ -28,13 +28,17 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 	cluster := os.Getenv("ALLOYDB_CLUSTER")
 	// Requires environment variable ALLOYDB_TABLE to be set.
 	table := os.Getenv("ALLOYDB_TABLE")
+	// Requires environment variable VERTEX_PROJECT to be set.
+	project := os.Getenv("VERTEX_PROJECT")
+	// Requires environment variable VERTEX_LOCATION to be set.
+	location := os.Getenv("VERTEX_LOCATION")
 
-	return username, password, database, projectID, region, instance, cluster, table
+	return username, password, database, projectID, region, instance, cluster, table, project, location
 }
 
 func main() {
 	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, cluster, table := getEnvVariables()
+	username, password, database, projectID, region, instance, cluster, table, vertexProject, vertexLocation := getEnvVariables()
 
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
 		alloydbutil.WithUser(username),
@@ -45,9 +49,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Create an embeddings client using the OpenAI API. Requires environment variable OPENAI_API_KEY to be set.
-	llm, err := openai.New()
+	// Initialize VertexAI LLM
+	llm, err := vertex.New(ctx, vertex.WithCloudProject(vertexProject), vertex.WithCloudLocation(vertexLocation))
 	if err != nil {
 		log.Fatal(err)
 	}
