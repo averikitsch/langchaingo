@@ -14,24 +14,54 @@ import (
 func getEnvVariables() (string, string, string, string, string, string, string, string, string, string) {
 	// Requires environment variable ALLOYDB_USERNAME to be set.
 	username := os.Getenv("ALLOYDB_USERNAME")
+	if username == "" {
+		log.Fatal("env variable ALLOYDB_USERNAME is empty")
+	}
 	// Requires environment variable ALLOYDB_PASSWORD to be set.
 	password := os.Getenv("ALLOYDB_PASSWORD")
+	if password == "" {
+		log.Fatal("env variable ALLOYDB_PASSWORD is empty")
+	}
 	// Requires environment variable ALLOYDB_DATABASE to be set.
 	database := os.Getenv("ALLOYDB_DATABASE")
+	if database == "" {
+		log.Fatal("env variable ALLOYDB_DATABASE is empty")
+	}
 	// Requires environment variable ALLOYDB_PROJECT_ID to be set.
 	projectID := os.Getenv("ALLOYDB_PROJECT_ID")
+	if projectID == "" {
+		log.Fatal("env variable ALLOYDB_PROJECT_ID is empty")
+	}
 	// Requires environment variable ALLOYDB_REGION to be set.
 	region := os.Getenv("ALLOYDB_REGION")
+	if region == "" {
+		log.Fatal("env variable ALLOYDB_REGION is empty")
+	}
 	// Requires environment variable ALLOYDB_INSTANCE to be set.
 	instance := os.Getenv("ALLOYDB_INSTANCE")
+	if instance == "" {
+		log.Fatal("env variable ALLOYDB_INSTANCE is empty")
+	}
 	// Requires environment variable ALLOYDB_CLUSTER to be set.
 	cluster := os.Getenv("ALLOYDB_CLUSTER")
+	if cluster == "" {
+		log.Fatal("env variable ALLOYDB_CLUSTER is empty")
+	}
 	// Requires environment variable ALLOYDB_TABLE to be set.
 	table := os.Getenv("ALLOYDB_TABLE")
+	if table == "" {
+		log.Fatal("env variable ALLOYDB_TABLE is empty")
+	}
 	// Requires environment variable VERTEX_PROJECT to be set.
 	project := os.Getenv("VERTEX_PROJECT")
+	if project == "" {
+		log.Fatal("env variable VERTEX_PROJECT is empty")
+	}
 	// Requires environment variable VERTEX_LOCATION to be set.
 	location := os.Getenv("VERTEX_LOCATION")
+	if location == "" {
+		log.Fatal("env variable VERTEX_LOCATION is empty")
+	}
 
 	return username, password, database, projectID, region, instance, cluster, table, project, location
 }
