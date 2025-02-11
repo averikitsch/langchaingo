@@ -54,29 +54,27 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 	return username, password, database, projectID, region, instance, cluster
 }
 
-func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
+func setEngine(t *testing.T, ctx context.Context) (alloydbutil.PostgresEngine, error) {
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
-	ctx := context.Background()
+
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
 		alloydbutil.WithUser(username),
 		alloydbutil.WithPassword(password),
 		alloydbutil.WithDatabase(database),
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
-	if err != nil {
-		t.Fatal("Could not set Engine: ", err)
-	}
 
-	return *pgEngine, nil
+	return *pgEngine, err
 }
 
 func TestNewChatMessageHistory(t *testing.T) {
-	engine, err := setEngine(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	engine, err := setEngine(t, ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer engine.Close()
-	ctx := context.Background()
 	_, err = alloydb.NewChatMessageHistory(ctx, engine, "items", "session")
 	if err != nil {
 		t.Fatal(err)
@@ -84,12 +82,13 @@ func TestNewChatMessageHistory(t *testing.T) {
 }
 
 func TestValidateTable(t *testing.T) {
-	engine, err := setEngine(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	engine, err := setEngine(t, ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer engine.Close()
-	ctx := context.Background()
 	chatMsgHistory, err := alloydb.NewChatMessageHistory(ctx, engine, "items", "session")
 	if err != nil {
 		t.Fatal(err)
