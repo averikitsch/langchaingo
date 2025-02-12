@@ -98,6 +98,9 @@ func main() {
 		false,
 		true,
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Initialize VertexAI LLM
 	llm, err := vertex.New(ctx, vertex.WithCloudProject(projectID), vertex.WithCloudLocation(vertexLocation), vertex.WithDefaultModel("gemini-1.0-pro-002"))
