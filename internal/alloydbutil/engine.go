@@ -139,8 +139,8 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 }
 
 // initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
-func (p *PostgresEngine) initVectorstoreTable(ctx context.Context, tableName string, vectorSize int, schemaName string, contentColumn string,
-	embeddingColumn string, metadataColumns []Column, metadataJsonColumn string, idColumn interface{}, overwriteExisting bool, storeMetadata bool) error {
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, tableName string, vectorSize int, schemaName string, contentColumn string,
+	embeddingColumn string, metadataColumns []Column, metadataJsonColumn string, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
 	// Ensure the vector extension exists
 	_, err := p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
@@ -155,21 +155,19 @@ func (p *PostgresEngine) initVectorstoreTable(ctx context.Context, tableName str
 		}
 	}
 
-	// Determine the id column type and name
-	var idDataType, idColumnName string
-	if idStr, ok := idColumn.(string); ok {
-		idDataType = "UUID"
-		idColumnName = idStr
-	} else if col, ok := idColumn.(Column); ok {
-		idDataType = col.DataType
-		idColumnName = col.Name
+	if idColumn.Name == "" {
+		idColumn.Name = "langchain_id"
+	}
+
+	if idColumn.DataType == "" {
+		idColumn.DataType = "UUID"
 	}
 
 	// Build the SQL query that creates the table
 	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
 		"%s" %s PRIMARY KEY,
 		"%s" TEXT NOT NULL,
-		"%s" vector(%d) NOT NULL`, schemaName, tableName, idColumnName, idDataType, contentColumn, embeddingColumn, vectorSize)
+		"%s" vector(%d) NOT NULL`, schemaName, tableName, idColumn.Name, idColumn.DataType, contentColumn, embeddingColumn, vectorSize)
 
 	// Add metadata columns  to the query string if provided
 	for _, column := range metadataColumns {
@@ -186,7 +184,7 @@ func (p *PostgresEngine) initVectorstoreTable(ctx context.Context, tableName str
 	}
 	// Close the query string
 	query += ");"
-	
+
 	// Execute the query to create the table
 	_, err = p.Pool.Exec(ctx, query)
 	if err != nil {
@@ -197,7 +195,7 @@ func (p *PostgresEngine) initVectorstoreTable(ctx context.Context, tableName str
 }
 
 // initChatHistoryTable creates a Cloud SQL table to store chat history.
-func (p *PostgresEngine) initChatHistoryTable(ctx context.Context, tableName string, schemaName string) error {
+func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName string, schemaName string) error {
 	createTableQuery := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s"."%s" (
 		id SERIAL PRIMARY KEY,
 		session_id TEXT NOT NULL,
