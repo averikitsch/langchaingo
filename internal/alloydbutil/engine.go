@@ -19,6 +19,12 @@ type PostgresEngine struct {
 	Pool *pgxpool.Pool
 }
 
+type Column struct {
+	Name     string
+	DataType string
+	Nullable bool
+}
+
 // NewPostgresEngine creates a new PostgresEngine.
 func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
@@ -130,4 +136,77 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get user info: %w", err)
 	}
 	return userInfo.Email, nil
+}
+
+// initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, tableName string, vectorSize int, schemaName string, contentColumn string,
+	embeddingColumn string, metadataColumns []Column, metadataJsonColumn string, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
+	// Ensure the vector extension exists
+	_, err := p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
+	if err != nil {
+		return fmt.Errorf("failed to create extension: %v", err)
+	}
+
+	// Drop table if exists and overwrite flag is true
+	if overwriteExisting {
+		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, schemaName, tableName))
+		if err != nil {
+			return fmt.Errorf("failed to drop table: %v", err)
+		}
+	}
+
+	if idColumn.Name == "" {
+		idColumn.Name = "langchain_id"
+	}
+
+	if idColumn.DataType == "" {
+		idColumn.DataType = "UUID"
+	}
+
+	// Build the SQL query that creates the table
+	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
+		"%s" %s PRIMARY KEY,
+		"%s" TEXT NOT NULL,
+		"%s" vector(%d) NOT NULL`, schemaName, tableName, idColumn.Name, idColumn.DataType, contentColumn, embeddingColumn, vectorSize)
+
+	// Add metadata columns  to the query string if provided
+	for _, column := range metadataColumns {
+		nullable := ""
+		if !column.Nullable {
+			nullable = "NOT NULL"
+		}
+		query += fmt.Sprintf(`, "%s" %s %s`, column.Name, column.DataType, nullable)
+	}
+
+	// Add JSON metadata column to the query string if storeMetadata is true
+	if storeMetadata {
+		query += fmt.Sprintf(`, "%s" JSON`, metadataJsonColumn)
+	}
+	// Close the query string
+	query += ");"
+
+	// Execute the query to create the table
+	_, err = p.Pool.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to create table: %v", err)
+	}
+
+	return nil
+}
+
+// initChatHistoryTable creates a Cloud SQL table to store chat history.
+func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName string, schemaName string) error {
+	createTableQuery := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s"."%s" (
+		id SERIAL PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		data JSONB NOT NULL,
+		type TEXT NOT NULL
+	);`, schemaName, tableName)
+
+	// Execute the query
+	_, err := p.Pool.Exec(ctx, createTableQuery)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %v", err)
+	}
+	return nil
 }
