@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/alloydbutil"
@@ -11,7 +12,7 @@ import (
 	"os"
 )
 
-func getEnvVariables() (string, string, string, string, string, string, string, string, string, string) {
+func getEnvVariables() (string, string, string, string, string, string, string, string, string) {
 	// Requires environment variable ALLOYDB_USERNAME to be set.
 	username := os.Getenv("ALLOYDB_USERNAME")
 	if username == "" {
@@ -52,24 +53,21 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 	if table == "" {
 		log.Fatal("env variable ALLOYDB_TABLE is empty")
 	}
-	// Requires environment variable VERTEX_PROJECT to be set.
-	project := os.Getenv("VERTEX_PROJECT")
-	if project == "" {
-		log.Fatal("env variable VERTEX_PROJECT is empty")
-	}
+
 	// Requires environment variable VERTEX_LOCATION to be set.
 	location := os.Getenv("VERTEX_LOCATION")
 	if location == "" {
 		log.Fatal("env variable VERTEX_LOCATION is empty")
 	}
 
-	return username, password, database, projectID, region, instance, cluster, table, project, location
+	return username, password, database, projectID, region, instance, cluster, table, location
 }
 
 func main() {
 	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, cluster, table, vertexProject, vertexLocation := getEnvVariables()
-
+	username, password, database, projectID, region, instance, cluster, table, vertexLocation := getEnvVariables()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
 		alloydbutil.WithUser(username),
 		alloydbutil.WithPassword(password),
@@ -79,8 +77,30 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Initialize Vectorstore table using InitVectorstoreTable method
+	err = pgEngine.InitVectorstoreTable(ctx, "tableName", 4096, "public", "content",
+		"embedding",
+		[]alloydbutil.Column{
+			alloydbutil.Column{
+				Name:     "area",
+				DataType: "int",
+				Nullable: false,
+			},
+			alloydbutil.Column{
+				Name:     "population",
+				DataType: "int",
+				Nullable: false,
+			},
+		},
+		"langchain_metadata",
+		alloydbutil.Column{Name: "langchain_id", DataType: "UUID", Nullable: false},
+		false,
+		true,
+	)
+
 	// Initialize VertexAI LLM
-	llm, err := vertex.New(ctx, vertex.WithCloudProject(vertexProject), vertex.WithCloudLocation(vertexLocation))
+	llm, err := vertex.New(ctx, vertex.WithCloudProject(projectID), vertex.WithCloudLocation(vertexLocation), vertex.WithDefaultModel("gemini-1.0-pro-002"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -91,7 +111,7 @@ func main() {
 	}
 
 	// Create a new alloydb vectorstore .
-	ctx := context.Background()
+
 	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table)
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{
