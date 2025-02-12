@@ -4,15 +4,13 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 
 ## What This Example Does
 
-1. **Creates a Alloydb VectorStore:**
-   - Establishes a connection to the AlloyDB database.
-   - Initializes the `alloydb.PostgresEngine` object.
-   - Initializes a `alloydb.VectorStore` objects using VertexAI embeddings.
-   - Requires the environment variables to be set for it to work.
+1. **Creates a AlloyDB VectorStore:**
+   - Initializes the `alloydb.PostgresEngine` object to establish a connection to the AlloyDB database.
+   - Initializes a new table to store embeddings.
+   - Initializes a `alloydb.VectorStore` object using a VertexAI model for embeddings.
 
 2. **Initializes VertexAI Embeddings:**
     - Creates an embeddings client using the VertexAI API.
-    - Requires an VertexAI API key to be set as an environment variable.
 
 3. **Adds Sample Documents:**
     - Inserts several documents (cities) with metadata into the vector store.
@@ -23,9 +21,8 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 
 ## How to Run the Example
 
-1. Set your Google VertexAI VERTEX_PROJECT, VERTEX_LOCATION and your environment variables (These can be found at [AlloyDB Instance](https://console.cloud.google.com/alloydb/clusters)):
+1. Set the following environment variables. Your AlloyDB values can be found in the [Google Cloud Console](https://console.cloud.google.com/alloydb/clusters)):
    ```
-   export VERTEX_PROJECT=<your vertex project>
    export VERTEX_LOCATION=<your vertex location>
    export ALLOYDB_USERNAME=<your user>
    export ALLOYDB_PASSWORD=<your password>
@@ -44,8 +41,8 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 
 ## Key Features
 
-- Integration of AlloyDB vectorstore with VertexAI embeddings
-- Similarity search
-- Adding documents into AlloyDB with pgvector extension
+- This example demonstrates how to use `alloydb.PostgresEngine` for connection pooling.
+- It shows how to integrate with VertexAI embeddings models.
+- Run the code to add documents and perform a similarity search with `alloydb.VectorStore`.
 
 This example provides a practical demonstration of using vector databases for semantic search and similarity matching, which can be incredibly useful for various AI and machine learning applications.
