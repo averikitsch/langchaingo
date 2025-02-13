@@ -103,7 +103,7 @@ func main() {
 	}
 
 	// Initialize VertexAI LLM
-	llm, err := vertex.New(ctx, vertex.WithCloudProject(projectID), vertex.WithCloudLocation(vertexLocation), vertex.WithDefaultModel("gemini-1.0-pro-002"))
+	llm, err := vertex.New(ctx, vertex.WithCloudProject(projectID), vertex.WithCloudLocation(vertexLocation), vertex.WithDefaultModel("text-embedding-005"))
 	if err != nil {
 		log.Fatal(err)
 	}
