@@ -18,6 +18,7 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 
 4. **Performs Similarity Searches:**
     - Basic search for documents similar to "Japan".
+    - Customized search for documents using filters by metadata.
 
 ## How to Run the Example
 
@@ -44,5 +45,6 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 - This example demonstrates how to use `alloydb.PostgresEngine` for connection pooling.
 - It shows how to integrate with VertexAI embeddings models.
 - Run the code to add documents and perform a similarity search with `alloydb.VectorStore`.
+- Demonstrates how to filter through the metadata added by using key value pairs.
 
 This example provides a practical demonstration of using vector databases for semantic search and similarity matching, which can be incredibly useful for various AI and machine learning applications.

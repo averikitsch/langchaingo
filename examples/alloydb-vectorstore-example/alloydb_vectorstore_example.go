@@ -7,6 +7,7 @@ import (
 	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/llms/googleai/vertex"
 	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/vectorstores"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"log"
 	"os"
@@ -187,4 +188,13 @@ func main() {
 	}
 
 	fmt.Println("Docs:", docs)
+
+	// Search for similar documents using score threshold and metadata filter.
+	filter := map[string]any{"area": "1523"} // Sao Paulo
+	filteredDocs, err := vs.SimilaritySearch(ctx, "Brazil", vectorstores.WithFilters(filter))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Filtered Docs:", filteredDocs)
 }
