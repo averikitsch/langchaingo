@@ -28,10 +28,10 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 	if database == "" {
 		log.Fatal("env variable ALLOYDB_DATABASE is empty")
 	}
-	// Requires environment variable ALLOYDB_PROJECT_ID to be set.
-	projectID := os.Getenv("ALLOYDB_PROJECT_ID")
+	// Requires environment variable PROJECT_ID to be set.
+	projectID := os.Getenv("PROJECT_ID")
 	if projectID == "" {
-		log.Fatal("env variable ALLOYDB_PROJECT_ID is empty")
+		log.Fatal("env variable PROJECT_ID is empty")
 	}
 	// Requires environment variable ALLOYDB_REGION to be set.
 	region := os.Getenv("ALLOYDB_REGION")
