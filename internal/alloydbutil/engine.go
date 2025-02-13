@@ -138,9 +138,41 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 	return userInfo.Email, nil
 }
 
+// NewVectorstoreTableOptions initializes the options struct with the default values for
+// the InitVectorstoreTable function.
+func NewVectorstoreTableOptions(opts *VectorstoreTableOptions) (*VectorstoreTableOptions, error) {
+	vectorstoreTableOptions := new(VectorstoreTableOptions)
+	if opts.TableName == "" {
+		return vectorstoreTableOptions, fmt.Errorf("missing table name in options")
+	}
+	if opts.VectorSize == 0 {
+		return vectorstoreTableOptions, fmt.Errorf("missing vector size in options")
+	}
+	vectorstoreTableOptions.TableName = opts.TableName
+	vectorstoreTableOptions.VectorSize = opts.VectorSize
+	if opts.SchemaName != "" {
+		vectorstoreTableOptions.SchemaName = opts.SchemaName
+	} else {
+		vectorstoreTableOptions.SchemaName = "public"
+	}
+
+	if opts.ContentColumnName != "" {
+		vectorstoreTableOptions.ContentColumnName = opts.ContentColumnName
+	} else {
+		vectorstoreTableOptions.ContentColumnName = "content"
+	}
+
+	if opts.EmbeddingColumn != "" {
+		vectorstoreTableOptions.EmbeddingColumn = opts.EmbeddingColumn
+	} else {
+		vectorstoreTableOptions.EmbeddingColumn = "embedding"
+	}
+
+	return vectorstoreTableOptions, nil
+}
+
 // initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
-func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, tableName string, vectorSize int, schemaName string, contentColumn string,
-	embeddingColumn string, metadataColumns []Column, metadataJsonColumn string, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions, metadataColumns []Column, metadataJsonColumn string, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
 	// Ensure the vector extension exists
 	_, err := p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
@@ -149,7 +181,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, tableName str
 
 	// Drop table if exists and overwrite flag is true
 	if overwriteExisting {
-		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, schemaName, tableName))
+		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, vsTableOpts.SchemaName, vsTableOpts.TableName))
 		if err != nil {
 			return fmt.Errorf("failed to drop table: %v", err)
 		}
@@ -167,7 +199,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, tableName str
 	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
 		"%s" %s PRIMARY KEY,
 		"%s" TEXT NOT NULL,
-		"%s" vector(%d) NOT NULL`, schemaName, tableName, idColumn.Name, idColumn.DataType, contentColumn, embeddingColumn, vectorSize)
+		"%s" vector(%d) NOT NULL`, vsTableOpts.SchemaName, vsTableOpts.TableName, idColumn.Name, idColumn.DataType, vsTableOpts.ContentColumnName, vsTableOpts.EmbeddingColumn, vsTableOpts.VectorSize)
 
 	// Add metadata columns  to the query string if provided
 	for _, column := range metadataColumns {

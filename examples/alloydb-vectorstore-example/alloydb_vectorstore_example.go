@@ -79,8 +79,16 @@ func main() {
 	}
 
 	// Initialize Vectorstore table using InitVectorstoreTable method
-	err = pgEngine.InitVectorstoreTable(ctx, "tableName", 4096, "public", "content",
-		"embedding",
+	vectorstoreTableoptions, err := alloydbutil.NewVectorstoreTableOptions(&alloydbutil.VectorstoreTableOptions{
+		TableName:  "table",
+		VectorSize: 768,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = pgEngine.InitVectorstoreTable(ctx, *vectorstoreTableoptions,
 		[]alloydbutil.Column{
 			alloydbutil.Column{
 				Name:     "area",
@@ -95,7 +103,7 @@ func main() {
 		},
 		"langchain_metadata",
 		alloydbutil.Column{Name: "langchain_id", DataType: "UUID", Nullable: false},
-		false,
+		true,
 		true,
 	)
 	if err != nil {
