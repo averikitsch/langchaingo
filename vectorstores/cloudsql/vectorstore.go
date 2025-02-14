@@ -105,11 +105,14 @@ func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string) er
 	return nil
 }
 
-// ReIndex re-indexes the VectorStore.
-func (vs *VectorStore) ReIndex(ctx context.Context, indexName string) error {
-	if indexName == "" {
-		indexName = vs.tableName + defaultIndexNameSuffix
-	}
+// ReIndex recreates the index on the VectorStore.
+func (vs *VectorStore) ReIndex(ctx context.Context) error {
+	indexName := vs.tableName + defaultIndexNameSuffix
+	return vs.ReIndexWithName(ctx, indexName)
+}
+
+// ReIndex recreates the index on the VectorStore by name.
+func (vs *VectorStore) ReIndexWithName(ctx context.Context, indexName string) error {
 	query := fmt.Sprintf("REINDEX INDEX %s;", indexName)
 	_, err := vs.engine.Pool.Exec(ctx, query)
 	if err != nil {
