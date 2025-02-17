@@ -24,6 +24,15 @@ type engineConfig struct {
 	emailRetreiver  EmailRetriever
 }
 
+type VectorstoreTableOptions struct {
+	TableName          string
+	VectorSize         int
+	SchemaName         string
+	ContentColumnName  string
+	EmbeddingColumn    string
+	MetadataJsonColumn string
+}
+
 // WithAlloyDBInstance sets the project, region, cluster, and instance fields.
 func WithAlloyDBInstance(projectID, region, cluster, instance string) Option {
 	return func(p *engineConfig) {
