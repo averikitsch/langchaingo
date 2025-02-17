@@ -81,6 +81,7 @@ func TestNewPostgresEngine(t *testing.T) {
 
 	for index, engine := range testEngines {
 		t.Run(fmt.Sprintf("Engine No. %d", index+1), func(t *testing.T) {
+			// create engines inside t run
 			defer engine.eg.Close()
 			t.Parallel()
 			if index == 0 && engine.error == nil {
