@@ -28,7 +28,7 @@ type VectorStore struct {
 	metadataJsonColumn string
 	contentColumn      string
 	embeddingColumn    string
-	metadataColumns    []string
+	metadataColumns    []alloydbutil.Column
 	k                  int
 	distanceStrategy   distanceStrategy
 }
