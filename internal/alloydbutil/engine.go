@@ -168,11 +168,17 @@ func NewVectorstoreTableOptions(opts *VectorstoreTableOptions) (*VectorstoreTabl
 		vectorstoreTableOptions.EmbeddingColumn = "embedding"
 	}
 
+	if opts.MetadataJsonColumn != "" {
+		vectorstoreTableOptions.MetadataJsonColumn = opts.MetadataJsonColumn
+	} else {
+		vectorstoreTableOptions.MetadataJsonColumn = "langchain_metadata"
+	}
+
 	return vectorstoreTableOptions, nil
 }
 
 // initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
-func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions, metadataColumns []Column, metadataJsonColumn string, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions, metadataColumns []Column, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
 	// Ensure the vector extension exists
 	_, err := p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
@@ -212,7 +218,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts V
 
 	// Add JSON metadata column to the query string if storeMetadata is true
 	if storeMetadata {
-		query += fmt.Sprintf(`, "%s" JSON`, metadataJsonColumn)
+		query += fmt.Sprintf(`, "%s" JSON`, vsTableOpts.MetadataJsonColumn)
 	}
 	// Close the query string
 	query += ");"

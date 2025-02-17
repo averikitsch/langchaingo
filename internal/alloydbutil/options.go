@@ -25,11 +25,12 @@ type engineConfig struct {
 }
 
 type VectorstoreTableOptions struct {
-	TableName         string
-	VectorSize        int
-	SchemaName        string
-	ContentColumnName string
-	EmbeddingColumn   string
+	TableName          string
+	VectorSize         int
+	SchemaName         string
+	ContentColumnName  string
+	EmbeddingColumn    string
+	MetadataJsonColumn string
 }
 
 // WithAlloyDBInstance sets the project, region, cluster, and instance fields.
