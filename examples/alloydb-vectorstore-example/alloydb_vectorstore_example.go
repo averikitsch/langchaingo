@@ -102,7 +102,6 @@ func main() {
 				Nullable: false,
 			},
 		},
-		"langchain_metadata",
 		alloydbutil.Column{Name: "langchain_id", DataType: "UUID", Nullable: false},
 		true,
 		true,
