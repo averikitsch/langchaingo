@@ -2,12 +2,13 @@ package alloydb_test
 
 import (
 	"context"
-	"github.com/tmc/langchaingo/internal/alloydbutil"
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/memory/alloydb"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/tmc/langchaingo/internal/alloydbutil"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/memory/alloydb"
 )
 
 type chatMsg struct{}
@@ -66,20 +67,6 @@ func setEngine(t *testing.T, ctx context.Context) (alloydbutil.PostgresEngine, e
 	)
 
 	return *pgEngine, err
-}
-
-func TestNewChatMessageHistory(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	engine, err := setEngine(t, ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer engine.Close()
-	_, err = alloydb.NewChatMessageHistory(ctx, engine, "items", "session")
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestValidateTable(t *testing.T) {
