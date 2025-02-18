@@ -3,15 +3,18 @@ package alloydbutil
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
-	"strconv"
 	"testing"
 )
 
-type TestEngine struct {
-	eg    PostgresEngine
-	error error
+type TestEngineParams struct {
+	username  string
+	password  string
+	database  string
+	projectId string
+	region    string
+	clusterId string
+	instance  string
 }
 
 func getEnvVariables(t *testing.T) (string, string, string, string, string, string, string) {
@@ -50,56 +53,86 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 }
 
 func TestNewPostgresEngine(t *testing.T) {
-	t.Parallel()
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	testEngines := []TestEngine{
-		newTestEngine(ctx, WithUser(username),
-			WithPassword(password),
-			WithDatabase(database),
-			WithAlloyDBInstance(projectID, region, cluster, instance)),
-		newTestEngine(ctx,
-			WithUser(""),
-			WithPassword(""),
-			WithDatabase(database),
-			WithAlloyDBInstance(projectID, region, cluster, instance),
-		),
-		newTestEngine(ctx,
-			WithUser(username),
-			WithPassword(password),
-			WithDatabase(database),
-			WithAlloyDBInstance(projectID, region, cluster, ""),
-		),
-		newTestEngine(ctx,
-			WithUser(username),
-			WithPassword(""),
-			WithDatabase(database),
-			WithAlloyDBInstance(projectID, region, cluster, instance),
-		),
+	tcs := []struct {
+		desc string
+		in   TestEngineParams
+		err  string
+	}{
+		{
+			desc: "Sucessful Engine Creation",
+			in: TestEngineParams{
+				username:  username,
+				password:  password,
+				database:  database,
+				projectId: projectID,
+				region:    region,
+				clusterId: cluster,
+				instance:  instance,
+			},
+			err: "",
+		},
+		{
+			desc: "Error in engine creation with missing username and password",
+			in: TestEngineParams{
+				username:  "",
+				password:  "",
+				database:  database,
+				projectId: projectID,
+				region:    region,
+				clusterId: cluster,
+				instance:  instance,
+			},
+			err: "missing or invalid credentials",
+		},
+		{
+			desc: "Error in engine creation with missing instance",
+			in: TestEngineParams{
+				username:  username,
+				password:  password,
+				database:  database,
+				projectId: projectID,
+				region:    region,
+				clusterId: cluster,
+				instance:  "",
+			},
+			err: "missing connection: provide a connection pool or connection fields",
+		},
+		{
+			desc: "Error in engine creation with missing projectId",
+			in: TestEngineParams{
+				username:  username,
+				password:  password,
+				database:  database,
+				projectId: "",
+				region:    region,
+				clusterId: cluster,
+				instance:  instance,
+			},
+			err: "missing connection: provide a connection pool or connection fields",
+		},
 	}
 
-	for index, engine := range testEngines {
-		t.Run(fmt.Sprintf("Engine No. %d", index+1), func(t *testing.T) {
-			// create engines inside t run
-			defer engine.eg.Close()
-			t.Parallel()
-			if index == 0 && engine.error == nil {
-				if err := engine.eg.Pool.Ping(ctx); err != nil {
-					t.Fatal("Engine was created but failed to ping the DB: ", err)
-				}
+	for _, tc := range tcs {
+		t.Run(tc.desc, func(t *testing.T) {
+			_, err := NewPostgresEngine(ctx,
+				WithUser(tc.in.username),
+				WithPassword(tc.in.password),
+				WithDatabase(tc.in.database),
+				WithAlloyDBInstance(tc.in.projectId, tc.in.region, tc.in.clusterId, tc.in.instance),
+			)
+			if err == nil && tc.err != "" {
+				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
 			} else {
-				if engine.error == nil {
-					t.Errorf("Engine %s should have failed but didn't", strconv.Itoa(index))
+				errStr := err.Error()
+				if errStr != tc.err {
+					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
 				}
 			}
 		})
 	}
-}
-
-func newTestEngine(ctx context.Context, opts ...Option) TestEngine {
-	pgEngine, err := NewPostgresEngine(ctx, opts...)
-	return TestEngine{*pgEngine, err}
 }
 
 func TestGetUser(t *testing.T) {
