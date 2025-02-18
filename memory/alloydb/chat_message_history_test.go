@@ -6,6 +6,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/memory/alloydb"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +83,7 @@ func TestNewChatMessageHistory(t *testing.T) {
 }
 
 func TestValidateTable(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	engine, err := setEngine(t, ctx)
@@ -89,25 +91,62 @@ func TestValidateTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close()
-	chatMsgHistory, err := alloydb.NewChatMessageHistory(ctx, engine, "items", "session")
-	if err != nil {
-		t.Fatal(err)
+	tcs := []struct {
+		desc      string
+		tableName string
+		sessionID string
+		err       string
+	}{
+		{
+			desc:      "Succesful creation of Chat Message History",
+			tableName: "items",
+			sessionID: "session",
+			err:       "",
+		},
+		{
+			desc:      "Creation of Chat Message History with missing table",
+			tableName: "",
+			sessionID: "session",
+			err:       "",
+		},
+		{
+			desc:      "Creation of Chat Message History with missing session ID",
+			tableName: "items",
+			sessionID: "",
+			err:       "",
+		},
 	}
 
-	err = chatMsgHistory.AddMessage(ctx, chatMsg{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = chatMsgHistory.AddAIMessage(ctx, "AI message")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = chatMsgHistory.AddUserMessage(ctx, "user message")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = chatMsgHistory.Clear(ctx)
-	if err != nil {
-		t.Fatal(err)
+	for _, tc := range tcs {
+		t.Run(tc.desc, func(t *testing.T) {
+			chatMsgHistory, err := alloydb.NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
+			if tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) {
+				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
+			} else {
+				errStr := err.Error()
+				if errStr != tc.err {
+					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
+				}
+			}
+			// if the chat message history was created succesfully, continue with the other methods tests
+			if err == nil {
+				err = chatMsgHistory.AddMessage(ctx, chatMsg{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = chatMsgHistory.AddAIMessage(ctx, "AI message")
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = chatMsgHistory.AddUserMessage(ctx, "user message")
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = chatMsgHistory.Clear(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }
