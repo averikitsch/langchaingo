@@ -7,15 +7,6 @@ import (
 	"testing"
 )
 
-type TestEngineParams struct {
-	username  string
-	password  string
-	database  string
-	projectId string
-	region    string
-	instance  string
-}
-
 func getEnvVariables(t *testing.T) (string, string, string, string, string, string) {
 	t.Helper()
 
@@ -54,54 +45,46 @@ func TestNewPostgresEngine(t *testing.T) {
 	defer cancel()
 	tcs := []struct {
 		desc string
-		in   TestEngineParams
+		in   []Option
 		err  string
 	}{
 		{
 			desc: "Sucessful Engine Creation",
-			in: TestEngineParams{
-				username:  username,
-				password:  password,
-				database:  database,
-				projectId: projectID,
-				region:    region,
-				instance:  instance,
+			in: []Option{
+				WithUser(username),
+				WithPassword(password),
+				WithDatabase(database),
+				WithCloudSQLInstance(projectID, region, instance),
 			},
 			err: "",
 		},
 		{
 			desc: "Error in engine creation with missing username and password",
-			in: TestEngineParams{
-				username:  "",
-				password:  "",
-				database:  database,
-				projectId: projectID,
-				region:    region,
-				instance:  instance,
+			in: []Option{
+				WithUser(""),
+				WithPassword(""),
+				WithDatabase(database),
+				WithCloudSQLInstance(projectID, region, instance),
 			},
 			err: "missing or invalid credentials",
 		},
 		{
 			desc: "Error in engine creation with missing instance",
-			in: TestEngineParams{
-				username:  username,
-				password:  password,
-				database:  database,
-				projectId: projectID,
-				region:    region,
-				instance:  "",
+			in: []Option{
+				WithUser(username),
+				WithPassword(password),
+				WithDatabase(database),
+				WithCloudSQLInstance(projectID, region, ""),
 			},
 			err: "missing connection: provide a connection pool or connection fields",
 		},
 		{
 			desc: "Error in engine creation with missing projectId",
-			in: TestEngineParams{
-				username:  username,
-				password:  password,
-				database:  database,
-				projectId: "",
-				region:    region,
-				instance:  instance,
+			in: []Option{
+				WithUser(username),
+				WithPassword(password),
+				WithDatabase(database),
+				WithCloudSQLInstance("", region, instance),
 			},
 			err: "missing connection: provide a connection pool or connection fields",
 		},
@@ -109,12 +92,7 @@ func TestNewPostgresEngine(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := NewPostgresEngine(ctx,
-				WithUser(tc.in.username),
-				WithPassword(tc.in.password),
-				WithDatabase(tc.in.database),
-				WithCloudSQLInstance(tc.in.projectId, tc.in.region, tc.in.instance),
-			)
+			_, err := NewPostgresEngine(ctx, tc.in...)
 			if err == nil && tc.err != "" {
 				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
 			} else {
