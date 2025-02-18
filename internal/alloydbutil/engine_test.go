@@ -53,6 +53,7 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 }
 
 func TestNewPostgresEngine(t *testing.T) {
+	t.Parallel()
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
