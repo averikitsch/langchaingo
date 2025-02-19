@@ -102,7 +102,6 @@ func main() {
 				Nullable: false,
 			},
 		},
-		alloydbutil.Column{Name: "langchain_id", DataType: "UUID", Nullable: false},
 		true,
 		true,
 	)
@@ -122,21 +121,7 @@ func main() {
 	}
 
 	// Create a new alloydb vectorstore .
-
-	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table,
-		alloydb.WithMetadataColumns(
-			[]alloydbutil.Column{
-				alloydbutil.Column{
-					Name:     "area",
-					DataType: "int",
-					Nullable: false,
-				},
-				alloydbutil.Column{
-					Name:     "population",
-					DataType: "int",
-					Nullable: false,
-				},
-			}))
+	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table)
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{
 		{

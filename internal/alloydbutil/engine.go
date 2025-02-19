@@ -178,7 +178,7 @@ func NewVectorstoreTableOptions(opts *VectorstoreTableOptions) (*VectorstoreTabl
 }
 
 // initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
-func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions, metadataColumns []Column, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions, metadataColumns []Column, overwriteExisting bool, storeMetadata bool) error {
 	// Ensure the vector extension exists
 	_, err := p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
@@ -193,12 +193,9 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts V
 		}
 	}
 
-	if idColumn.Name == "" {
-		idColumn.Name = "langchain_id"
-	}
-
-	if idColumn.DataType == "" {
-		idColumn.DataType = "UUID"
+	idColumn := Column{
+		Name:     "langchain_id",
+		DataType: "UUID",
 	}
 
 	// Build the SQL query that creates the table
