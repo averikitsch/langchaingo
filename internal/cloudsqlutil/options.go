@@ -3,6 +3,7 @@ package cloudsqlutil
 import (
 	"context"
 	"errors"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,7 +23,7 @@ type engineConfig struct {
 	emailRetreiver  EmailRetriever
 }
 
-// WithCloudSQLInstance sets the project, region, cluster, and instance fields.
+// WithCloudSQLInstance sets the project, region, and instance fields.
 func WithCloudSQLInstance(projectID, region, instance string) Option {
 	return func(p *engineConfig) {
 		p.projectID = projectID
