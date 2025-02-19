@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
 	"github.com/tmc/langchaingo/schema"
@@ -79,9 +80,10 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	if opts.Filters != nil {
 		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
+	vector := pgvector.NewVector(embedding)
 	stmt := fmt.Sprintf(`
         SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
-		columnNames, searchFunction, vs.embeddingColumn, vectorToString(embedding), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vectorToString(embedding))
+		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vector.String())
 
 	results, err := vs.executeSQLQuery(ctx, stmt)
 	if err != nil {
@@ -220,19 +222,4 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	}
 
 	return indexnameFromDb == indexName, nil
-}
-
-func vectorToString(vec []float32) string {
-	var buf strings.Builder
-	buf.WriteString("[")
-
-	for i := 0; i < len(vec); i++ {
-		if i > 0 {
-			buf.WriteString(",")
-		}
-		buf.WriteString(strconv.FormatFloat(float64(vec[i]), 'f', -1, 32))
-	}
-
-	buf.WriteString("]")
-	return buf.String()
 }
