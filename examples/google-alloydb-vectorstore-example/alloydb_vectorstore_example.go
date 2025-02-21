@@ -79,11 +79,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Initialize Vectorstore table using InitVectorstoreTable method
-	vectorstoreTableoptions, err := alloydbutil.NewVectorstoreTableOptions(&alloydbutil.VectorstoreTableOptions{
+	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
+	vectorstoreTableoptions, err := &alloydbutil.VectorstoreTableOptions{
 		TableName:  "table",
 		VectorSize: 768,
-	})
+	}
 
 	if err != nil {
 		log.Fatal(err)
@@ -102,8 +102,6 @@ func main() {
 				Nullable: false,
 			},
 		},
-		true,
-		true,
 	)
 	if err != nil {
 		log.Fatal(err)

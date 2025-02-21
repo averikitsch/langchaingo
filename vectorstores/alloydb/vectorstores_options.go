@@ -57,7 +57,7 @@ func WithEmbeddingColumn(embeddingColumn string) AlloyDBVectoreStoresOption {
 }
 
 // WithMetadataColumns sets the VectorStore's MetadataColumns field.
-func WithMetadataColumns(metadataColumns []alloydbutil.Column) AlloyDBVectoreStoresOption {
+func WithMetadataColumns(metadataColumns []string) AlloyDBVectoreStoresOption {
 	return func(v *VectorStore) {
 		v.metadataColumns = metadataColumns
 	}
@@ -101,7 +101,7 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 		metadataJsonColumn: defaultMetadataJsonColumn,
 		k:                  defaultK,
 		distanceStrategy:   defaultDistanceStrategy,
-		metadataColumns:    []alloydbutil.Column{},
+		metadataColumns:    []string{},
 	}
 	for _, opt := range opts {
 		opt(vs)

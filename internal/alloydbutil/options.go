@@ -31,6 +31,10 @@ type VectorstoreTableOptions struct {
 	ContentColumnName  string
 	EmbeddingColumn    string
 	MetadataJsonColumn string
+	IdColumn           Column
+	MetadataColumns    []Column
+	OverwriteExisting  bool
+	StoreMetadata      bool
 }
 
 // WithAlloyDBInstance sets the project, region, cluster, and instance fields.

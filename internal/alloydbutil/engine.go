@@ -138,74 +138,72 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 	return userInfo.Email, nil
 }
 
-// NewVectorstoreTableOptions initializes the options struct with the default values for
+// validateVectorstoreTableOptions initializes the options struct with the default values for
 // the InitVectorstoreTable function.
-func NewVectorstoreTableOptions(opts *VectorstoreTableOptions) (*VectorstoreTableOptions, error) {
-	vectorstoreTableOptions := new(VectorstoreTableOptions)
+func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) (*VectorstoreTableOptions, error) {
 	if opts.TableName == "" {
-		return vectorstoreTableOptions, fmt.Errorf("missing table name in options")
+		return &VectorstoreTableOptions{}, fmt.Errorf("missing table name in options")
 	}
 	if opts.VectorSize == 0 {
-		return vectorstoreTableOptions, fmt.Errorf("missing vector size in options")
+		return &VectorstoreTableOptions{}, fmt.Errorf("missing vector size in options")
 	}
-	vectorstoreTableOptions.TableName = opts.TableName
-	vectorstoreTableOptions.VectorSize = opts.VectorSize
+
 	if opts.SchemaName != "" {
-		vectorstoreTableOptions.SchemaName = opts.SchemaName
-	} else {
-		vectorstoreTableOptions.SchemaName = "public"
+		opts.SchemaName = "public"
 	}
 
 	if opts.ContentColumnName != "" {
-		vectorstoreTableOptions.ContentColumnName = opts.ContentColumnName
-	} else {
-		vectorstoreTableOptions.ContentColumnName = "content"
+		opts.ContentColumnName = "content"
 	}
 
 	if opts.EmbeddingColumn != "" {
-		vectorstoreTableOptions.EmbeddingColumn = opts.EmbeddingColumn
-	} else {
-		vectorstoreTableOptions.EmbeddingColumn = "embedding"
+		opts.EmbeddingColumn = "embedding"
 	}
 
 	if opts.MetadataJsonColumn != "" {
-		vectorstoreTableOptions.MetadataJsonColumn = opts.MetadataJsonColumn
-	} else {
-		vectorstoreTableOptions.MetadataJsonColumn = "langchain_metadata"
+		opts.MetadataJsonColumn = "langchain_metadata"
 	}
 
-	return vectorstoreTableOptions, nil
+	if opts.IdColumn.Name == "" {
+		opts.IdColumn.Name = "langchain_id"
+	}
+
+	if opts.IdColumn.DataType == "" {
+		opts.IdColumn.DataType = "UUID"
+	}
+
+	return opts, nil
 }
 
 // initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
-func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions, metadataColumns []Column, overwriteExisting bool, storeMetadata bool) error {
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions) error {
+	opts, err := validateVectorstoreTableOptions(&vsTableOpts)
+	if err != nil {
+		return fmt.Errorf("failed to validate vectorstore table options: %v", err)
+	}
+
 	// Ensure the vector extension exists
-	_, err := p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
+	_, err = p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
 		return fmt.Errorf("failed to create extension: %v", err)
 	}
 
 	// Drop table if exists and overwrite flag is true
-	if overwriteExisting {
-		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, vsTableOpts.SchemaName, vsTableOpts.TableName))
+	if opts.OverwriteExisting {
+		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, opts.SchemaName, opts.TableName))
 		if err != nil {
 			return fmt.Errorf("failed to drop table: %v", err)
 		}
-	}
-
-	idColumn := Column{
-		Name:     "langchain_id",
-		DataType: "UUID",
 	}
 
 	// Build the SQL query that creates the table
 	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
 		"%s" %s PRIMARY KEY,
 		"%s" TEXT NOT NULL,
-		"%s" vector(%d) NOT NULL`, vsTableOpts.SchemaName, vsTableOpts.TableName, idColumn.Name, idColumn.DataType, vsTableOpts.ContentColumnName, vsTableOpts.EmbeddingColumn, vsTableOpts.VectorSize)
+		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
 
 	// Add metadata columns  to the query string if provided
-	for _, column := range metadataColumns {
+	for _, column := range opts.MetadataColumns {
 		nullable := ""
 		if !column.Nullable {
 			nullable = "NOT NULL"
@@ -214,8 +212,8 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts V
 	}
 
 	// Add JSON metadata column to the query string if storeMetadata is true
-	if storeMetadata {
-		query += fmt.Sprintf(`, "%s" JSON`, vsTableOpts.MetadataJsonColumn)
+	if opts.StoreMetadata {
+		query += fmt.Sprintf(`, "%s" JSON`, opts.MetadataJsonColumn)
 	}
 	// Close the query string
 	query += ");"
