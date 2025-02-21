@@ -119,7 +119,7 @@ func main() {
 	}
 
 	// Create a new alloydb vectorstore .
-	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table)
+	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{
 		{

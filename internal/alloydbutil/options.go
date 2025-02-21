@@ -24,6 +24,7 @@ type engineConfig struct {
 	emailRetreiver  EmailRetriever
 }
 
+// VectorstoreTableOptions is used with the InitVectorstoreTable to use the required and default fields.
 type VectorstoreTableOptions struct {
 	TableName          string
 	VectorSize         int
