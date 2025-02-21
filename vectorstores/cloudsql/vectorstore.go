@@ -104,3 +104,35 @@ func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string) er
 
 	return nil
 }
+
+// ReIndex recreates the index on the VectorStore.
+func (vs *VectorStore) ReIndex(ctx context.Context) error {
+	indexName := vs.tableName + defaultIndexNameSuffix
+	return vs.ReIndexWithName(ctx, indexName)
+}
+
+// ReIndex recreates the index on the VectorStore by name.
+func (vs *VectorStore) ReIndexWithName(ctx context.Context, indexName string) error {
+	query := fmt.Sprintf("REINDEX INDEX %s;", indexName)
+	_, err := vs.engine.Pool.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to reindex: %w", err)
+	}
+
+	return nil
+}
+
+// IsValidIndex checks if index exists in the VectorStore.
+func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool, error) {
+	if indexName == "" {
+		indexName = vs.tableName + defaultIndexNameSuffix
+	}
+	query := fmt.Sprintf("SELECT tablename, indexname  FROM pg_indexes WHERE tablename = '%s' AND schemaname = '%s' AND indexname = '%s';", vs.tableName, vs.schemaName, indexName)
+	var tablename, indexnameFromDb string
+	err := vs.engine.Pool.QueryRow(ctx, query).Scan(&tablename, &indexnameFromDb)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if index exists: %w", err)
+	}
+
+	return indexnameFromDb == indexName, nil
+}
