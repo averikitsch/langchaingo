@@ -118,7 +118,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Create a new alloydb vectorstore .
+	// Create a new AlloyDB Vectorstore
 	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{

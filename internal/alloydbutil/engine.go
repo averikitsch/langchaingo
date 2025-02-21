@@ -140,12 +140,12 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 
 // validateVectorstoreTableOptions initializes the options struct with the default values for
 // the InitVectorstoreTable function.
-func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) (*VectorstoreTableOptions, error) {
+func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 	if opts.TableName == "" {
-		return &VectorstoreTableOptions{}, fmt.Errorf("missing table name in options")
+		return fmt.Errorf("missing table name in options")
 	}
 	if opts.VectorSize == 0 {
-		return &VectorstoreTableOptions{}, fmt.Errorf("missing vector size in options")
+		return fmt.Errorf("missing vector size in options")
 	}
 
 	if opts.SchemaName != "" {
@@ -172,12 +172,12 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) (*Vectorstor
 		opts.IdColumn.DataType = "UUID"
 	}
 
-	return opts, nil
+	return nil
 }
 
 // initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
-func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, vsTableOpts VectorstoreTableOptions) error {
-	opts, err := validateVectorstoreTableOptions(&vsTableOpts)
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts VectorstoreTableOptions) error {
+	err := validateVectorstoreTableOptions(&opts)
 	if err != nil {
 		return fmt.Errorf("failed to validate vectorstore table options: %v", err)
 	}
