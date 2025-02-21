@@ -138,39 +138,72 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 	return userInfo.Email, nil
 }
 
+// validateVectorstoreTableOptions initializes the options struct with the default values for
+// the InitVectorstoreTable function.
+func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
+	if opts.TableName == "" {
+		return fmt.Errorf("missing table name in options")
+	}
+	if opts.VectorSize == 0 {
+		return fmt.Errorf("missing vector size in options")
+	}
+
+	if opts.SchemaName != "" {
+		opts.SchemaName = "public"
+	}
+
+	if opts.ContentColumnName != "" {
+		opts.ContentColumnName = "content"
+	}
+
+	if opts.EmbeddingColumn != "" {
+		opts.EmbeddingColumn = "embedding"
+	}
+
+	if opts.MetadataJsonColumn != "" {
+		opts.MetadataJsonColumn = "langchain_metadata"
+	}
+
+	if opts.IdColumn.Name == "" {
+		opts.IdColumn.Name = "langchain_id"
+	}
+
+	if opts.IdColumn.DataType == "" {
+		opts.IdColumn.DataType = "UUID"
+	}
+
+	return nil
+}
+
 // initVectorstoreTable creates a table for saving of vectors to be used with PostgresVectorStore.
-func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, tableName string, vectorSize int, schemaName string, contentColumn string,
-	embeddingColumn string, metadataColumns []Column, metadataJsonColumn string, idColumn Column, overwriteExisting bool, storeMetadata bool) error {
+func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts VectorstoreTableOptions) error {
+	err := validateVectorstoreTableOptions(&opts)
+	if err != nil {
+		return fmt.Errorf("failed to validate vectorstore table options: %v", err)
+	}
+
 	// Ensure the vector extension exists
-	_, err := p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
+	_, err = p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
 		return fmt.Errorf("failed to create extension: %v", err)
 	}
 
 	// Drop table if exists and overwrite flag is true
-	if overwriteExisting {
-		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, schemaName, tableName))
+	if opts.OverwriteExisting {
+		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, opts.SchemaName, opts.TableName))
 		if err != nil {
 			return fmt.Errorf("failed to drop table: %v", err)
 		}
-	}
-
-	if idColumn.Name == "" {
-		idColumn.Name = "langchain_id"
-	}
-
-	if idColumn.DataType == "" {
-		idColumn.DataType = "UUID"
 	}
 
 	// Build the SQL query that creates the table
 	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
 		"%s" %s PRIMARY KEY,
 		"%s" TEXT NOT NULL,
-		"%s" vector(%d) NOT NULL`, schemaName, tableName, idColumn.Name, idColumn.DataType, contentColumn, embeddingColumn, vectorSize)
+		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
 
 	// Add metadata columns  to the query string if provided
-	for _, column := range metadataColumns {
+	for _, column := range opts.MetadataColumns {
 		nullable := ""
 		if !column.Nullable {
 			nullable = "NOT NULL"
@@ -179,8 +212,8 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, tableName str
 	}
 
 	// Add JSON metadata column to the query string if storeMetadata is true
-	if storeMetadata {
-		query += fmt.Sprintf(`, "%s" JSON`, metadataJsonColumn)
+	if opts.StoreMetadata {
+		query += fmt.Sprintf(`, "%s" JSON`, opts.MetadataJsonColumn)
 	}
 	// Close the query string
 	query += ");"
