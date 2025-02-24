@@ -3,8 +3,107 @@ package cloudsqlutil
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 )
+
+func getEnvVariables(t *testing.T) (string, string, string, string, string, string) {
+	t.Helper()
+
+	username := os.Getenv("CLOUDSQL_USERNAME")
+	if username == "" {
+		t.Skip("CLOUDSQL_USERNAME environment variable not set")
+	}
+	password := os.Getenv("CLOUDSQL_PASSWORD")
+	if password == "" {
+		t.Skip("CLOUDSQL_PASSWORD environment variable not set")
+	}
+	database := os.Getenv("CLOUDSQL_DATABASE")
+	if database == "" {
+		t.Skip("CLOUDSQL_DATABASE environment variable not set")
+	}
+	projectID := os.Getenv("CLOUDSQL_PROJECT_ID")
+	if projectID == "" {
+		t.Skip("CLOUSQL_PROJECT_ID environment variable not set")
+	}
+	region := os.Getenv("CLOUDSQL_REGION")
+	if region == "" {
+		t.Skip("CLOUDSQL_REGION environment variable not set")
+	}
+	instance := os.Getenv("CLOUDSQL_INSTANCE")
+	if instance == "" {
+		t.Skip("CLOUDSQL_INSTANCE environment variable not set")
+	}
+
+	return username, password, database, projectID, region, instance
+}
+
+func TestNewPostgresEngine(t *testing.T) {
+	t.Parallel()
+	username, password, database, projectID, region, instance := getEnvVariables(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tcs := []struct {
+		desc string
+		in   []Option
+		err  string
+	}{
+		{
+			desc: "Sucessful Engine Creation",
+			in: []Option{
+				WithUser(username),
+				WithPassword(password),
+				WithDatabase(database),
+				WithCloudSQLInstance(projectID, region, instance),
+			},
+			err: "",
+		},
+		{
+			desc: "Error in engine creation with missing username and password",
+			in: []Option{
+				WithUser(""),
+				WithPassword(""),
+				WithDatabase(database),
+				WithCloudSQLInstance(projectID, region, instance),
+			},
+			err: "missing or invalid credentials",
+		},
+		{
+			desc: "Error in engine creation with missing instance",
+			in: []Option{
+				WithUser(username),
+				WithPassword(password),
+				WithDatabase(database),
+				WithCloudSQLInstance(projectID, region, ""),
+			},
+			err: "missing connection: provide a connection pool or connection fields",
+		},
+		{
+			desc: "Error in engine creation with missing projectId",
+			in: []Option{
+				WithUser(username),
+				WithPassword(password),
+				WithDatabase(database),
+				WithCloudSQLInstance("", region, instance),
+			},
+			err: "missing connection: provide a connection pool or connection fields",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.desc, func(t *testing.T) {
+			_, err := NewPostgresEngine(ctx, tc.in...)
+			if err == nil && tc.err != "" {
+				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
+			} else {
+				errStr := err.Error()
+				if errStr != tc.err {
+					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
+				}
+			}
+		})
+	}
+}
 
 func TestGetUser(t *testing.T) {
 	t.Parallel()
