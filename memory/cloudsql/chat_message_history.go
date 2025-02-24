@@ -2,10 +2,13 @@ package cloudsql
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
+	"github.com/tmc/langchaingo/llms"
 )
 
 type ChatMessageHistory struct {
@@ -52,7 +55,7 @@ func NewChatMessageHistory(ctx context.Context, engine cloudsqlutil.PostgresEngi
 func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	tableExistsQuery := `SELECT EXISTS (
 		SELECT FROM information_schema.tables 
-		WHERE table_schema = '$1' AND table_name = '$2');`
+		WHERE table_schema = $1 AND table_name = $2);`
 
 	var exists bool
 	err := c.engine.Pool.QueryRow(ctx, tableExistsQuery, c.schemaName, c.tableName).Scan(&exists)
@@ -77,7 +80,7 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	columnsQuery := `
     	 	SELECT column_name, data_type
     	 	FROM information_schema.columns
-   	 		WHERE table_schema = '$1' AND table_name = '$2';`
+   	 		WHERE table_schema = $1 AND table_name = $2;`
 
 	rows, err := c.engine.Pool.Query(ctx, columnsQuery, c.schemaName, c.tableName)
 	if err != nil {
@@ -104,4 +107,66 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// addMessage adds a new message into the ChatMessageHistory for a given
+// session.
+func (c *ChatMessageHistory) addMessage(ctx context.Context, content string, messageType llms.ChatMessageType) error {
+	data, err := json.Marshal(content)
+	if err != nil {
+		return fmt.Errorf("failed to serialize content to JSON: %w", err)
+	}
+	query := `INSERT INTO $1.$2 (session_id, data, type) VALUES ($3, $4, $5)`
+
+	_, err = c.engine.Pool.Exec(ctx, query, c.schemaName, c.tableName, c.sessionID, data, messageType)
+	if err != nil {
+		return fmt.Errorf("failed to add message to database: %w", err)
+	}
+	return nil
+}
+
+// AddMessage adds a message to the ChatMessageHistory.
+func (c *ChatMessageHistory) AddMessage(ctx context.Context, message llms.ChatMessage) error {
+	return c.addMessage(ctx, message.GetContent(), message.GetType())
+}
+
+// AddAIMessage adds an AI-generated message to the ChatMessageHistory.
+func (c *ChatMessageHistory) AddAIMessage(ctx context.Context, content string) error {
+	return c.addMessage(ctx, content, llms.ChatMessageTypeAI)
+}
+
+// AddUserMessage adds a user-generated message to the ChatMessageHistory.
+func (c *ChatMessageHistory) AddUserMessage(ctx context.Context, content string) error {
+	return c.addMessage(ctx, content, llms.ChatMessageTypeHuman)
+}
+
+// Clear removes all messages associated with a session from the
+// ChatMessageHistory.
+func (c *ChatMessageHistory) Clear(ctx context.Context) error {
+	if !c.overwrite {
+		return nil
+	}
+	query := `DELETE FROM $1.$2 WHERE session_id = $3`
+
+	_, err := c.engine.Pool.Exec(ctx, query, c.schemaName, c.tableName, c.sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to clear session %s: %w", c.sessionID, err)
+	}
+	return err
+}
+
+// AddMessages adds multiple messages to the ChatMessageHistory for a given
+// session.
+func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.ChatMessage) error {
+	b := &pgx.Batch{}
+	query := `INSERT INTO $1.$2 (session_id, data, type) VALUES ($3, $4, $5)`
+
+	for _, message := range messages {
+		data, err := json.Marshal(message.GetContent())
+		if err != nil {
+			return fmt.Errorf("failed to serialize content to JSON: %w", err)
+		}
+		b.Queue(query, c.schemaName, c.tableName, c.sessionID, data, message.GetType())
+	}
+	return c.engine.Pool.SendBatch(ctx, b).Close()
 }
