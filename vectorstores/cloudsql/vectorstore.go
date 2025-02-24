@@ -2,10 +2,15 @@ package cloudsql
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
+	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -49,6 +54,88 @@ func NewVectorStore(ctx context.Context, engine cloudsqlutil.PostgresEngine, emb
 		return VectorStore{}, err
 	}
 	return vs, nil
+}
+
+// SimilaritySearch performs a similarity search on the database using the
+// query vector.
+func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int, options ...vectorstores.Option) ([]schema.Document, error) {
+	opts, err := applyOpts(options...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply vector store options: %w", err)
+	}
+	var documents []schema.Document
+	embedding, err := vs.embedder.EmbedQuery(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed embed query: %w", err)
+	}
+	operator := vs.distanceStrategy.operator()
+	searchFunction := vs.distanceStrategy.similaritySearchFunction()
+
+	columns := append(vs.metadataColumns, vs.contentColumn)
+	if vs.metadataJsonColumn != "" {
+		columns = append(columns, vs.metadataJsonColumn)
+	}
+	columnNames := strings.Join(columns, `, `)
+	whereClause := ""
+	if opts.Filters != nil {
+		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
+	}
+	vector := pgvector.NewVector(embedding)
+	stmt := fmt.Sprintf(`
+        SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
+		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vector.String())
+
+	results, err := vs.executeSQLQuery(ctx, stmt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute sql query: %w", err)
+	}
+	documents, err = vs.processResultsToDocuments(results)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process Results to Documents with Scores: %w", err)
+	}
+	return documents, nil
+}
+
+func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]SearchDocument, error) {
+	rows, err := vs.engine.Pool.Query(ctx, stmt, vs.k)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute similar search query: %w", err)
+	}
+	defer rows.Close()
+
+	var results []SearchDocument
+	for rows.Next() {
+		doc := SearchDocument{}
+
+		err = rows.Scan(&doc.Content, &doc.Langchain_metadata, &doc.Distance)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan result: %w", err)
+		}
+		results = append(results, doc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+	return results, nil
+}
+
+func (vs *VectorStore) processResultsToDocuments(results []SearchDocument) ([]schema.Document, error) {
+	var documents []schema.Document
+	for _, result := range results {
+
+		mapMetadata := map[string]any{}
+		err := json.Unmarshal([]byte(result.Langchain_metadata), &mapMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal langchain metadata: %w", err)
+		}
+		doc := schema.Document{
+			PageContent: result.Content,
+			Metadata:    mapMetadata,
+			Score:       result.Distance,
+		}
+		documents = append(documents, doc)
+	}
+	return documents, nil
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings
