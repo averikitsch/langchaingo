@@ -1,6 +1,6 @@
 # Google AlloyDB Chat Message History Example
 
-This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google.com/products/alloydb) for making a Chat Message History with LangChain in Go.
+This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google.com/products/alloydb) as a backend for the ChatMessageHistory for LangChain in Go.
 
 ## What This Example Does
 
