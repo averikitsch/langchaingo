@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
@@ -116,9 +117,9 @@ func (c *ChatMessageHistory) addMessage(ctx context.Context, content string, mes
 	if err != nil {
 		return fmt.Errorf("failed to serialize content to JSON: %w", err)
 	}
-	query := `INSERT INTO $1.$2 (session_id, data, type) VALUES ($3, $4, $5)`
+	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`, c.schemaName, c.tableName)
 
-	_, err = c.engine.Pool.Exec(ctx, query, c.schemaName, c.tableName, c.sessionID, data, messageType)
+	_, err = c.engine.Pool.Exec(ctx, query, c.sessionID, data, messageType)
 	if err != nil {
 		return fmt.Errorf("failed to add message to database: %w", err)
 	}
@@ -146,9 +147,10 @@ func (c *ChatMessageHistory) Clear(ctx context.Context) error {
 	if !c.overwrite {
 		return nil
 	}
-	query := `DELETE FROM $1.$2 WHERE session_id = $3`
 
-	_, err := c.engine.Pool.Exec(ctx, query, c.schemaName, c.tableName, c.sessionID)
+	query := fmt.Sprintf(`DELETE FROM "%s"."%s" WHERE session_id = $1`, c.schemaName, c.tableName)
+
+	_, err := c.engine.Pool.Exec(ctx, query, c.sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to clear session %s: %w", c.sessionID, err)
 	}
@@ -159,14 +161,65 @@ func (c *ChatMessageHistory) Clear(ctx context.Context) error {
 // session.
 func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.ChatMessage) error {
 	b := &pgx.Batch{}
-	query := `INSERT INTO $1.$2 (session_id, data, type) VALUES ($3, $4, $5)`
+	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`, c.schemaName, c.tableName)
 
 	for _, message := range messages {
 		data, err := json.Marshal(message.GetContent())
 		if err != nil {
 			return fmt.Errorf("failed to serialize content to JSON: %w", err)
 		}
-		b.Queue(query, c.schemaName, c.tableName, c.sessionID, data, message.GetType())
+		b.Queue(query, c.sessionID, data, message.GetType())
 	}
 	return c.engine.Pool.SendBatch(ctx, b).Close()
+}
+
+// Messages retrieves all messages associated with a session from the
+// ChatMessageHistory.
+func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
+	query := fmt.Sprintf(
+		`SELECT id, session_id, data, type, timestamp FROM "%s"."%s" WHERE session_id = $1 ORDER BY id`,
+		c.schemaName,
+		c.tableName,
+	)
+
+	rows, err := c.engine.Pool.Query(ctx, query, c.sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve messages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []llms.ChatMessage
+	for rows.Next() {
+		var id int
+		var sessionID, data, messageType string
+		var timestamp time.Time
+		if err := rows.Scan(&id, &sessionID, &data, &messageType, &timestamp); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// Variable to hold the deserialized content
+		var content string
+
+		// Unmarshal the JSON data into the content variable
+		err := json.Unmarshal([]byte(data), &content)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
+		}
+		switch messageType {
+		case string(llms.ChatMessageTypeAI):
+			messages = append(messages, llms.AIChatMessage{Content: content})
+		case string(llms.ChatMessageTypeHuman):
+			messages = append(messages, llms.HumanChatMessage{Content: content})
+		case string(llms.ChatMessageTypeSystem):
+			messages = append(messages, llms.SystemChatMessage{Content: content})
+		default:
+			return nil, fmt.Errorf("unsupported message type: %s", messageType)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate over rows: %w", err)
+	}
+
+	return messages, nil
 }
