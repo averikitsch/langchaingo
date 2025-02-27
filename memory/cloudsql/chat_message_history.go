@@ -113,6 +113,7 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 // addMessage adds a new message into the ChatMessageHistory for a given
 // session.
 func (c *ChatMessageHistory) addMessage(ctx context.Context, content string, messageType llms.ChatMessageType) error {
+	// Marshal to convert content into a valid JSON format before inserting it into the database.
 	data, err := json.Marshal(content)
 	if err != nil {
 		return fmt.Errorf("failed to serialize content to JSON: %w", err)
@@ -164,6 +165,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`, c.schemaName, c.tableName)
 
 	for _, message := range messages {
+		// Marshal to convert content into a valid JSON format before inserting it into the database.
 		data, err := json.Marshal(message.GetContent())
 		if err != nil {
 			return fmt.Errorf("failed to serialize content to JSON: %w", err)
