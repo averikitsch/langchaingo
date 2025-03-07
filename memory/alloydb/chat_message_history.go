@@ -181,8 +181,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
 	query := fmt.Sprintf(
 		`SELECT id, session_id, data, type, timestamp FROM "%s"."%s" WHERE session_id = $1 ORDER BY id`,
-		c.schemaName,
-		c.tableName,
+		c.schemaName, c.tableName,
 	)
 
 	rows, err := c.engine.Pool.Query(ctx, query, c.sessionID)

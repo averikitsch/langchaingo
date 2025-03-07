@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/schema"
 )
 
 type ChatMessageHistory struct {
@@ -20,7 +21,7 @@ type ChatMessageHistory struct {
 	overwrite  bool
 }
 
-// var _ schema.ChatMessageHistory = &ChatMessageHistory{}
+var _ schema.ChatMessageHistory = &ChatMessageHistory{}
 
 // NewChatMessageHistory creates a new NewChatMessageHistory with options.
 func NewChatMessageHistory(ctx context.Context, engine cloudsqlutil.PostgresEngine, tableName string, sessionID string, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
@@ -180,8 +181,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
 	query := fmt.Sprintf(
 		`SELECT id, session_id, data, type, timestamp FROM "%s"."%s" WHERE session_id = $1 ORDER BY id`,
-		c.schemaName,
-		c.tableName,
+		c.schemaName, c.tableName,
 	)
 
 	rows, err := c.engine.Pool.Query(ctx, query, c.sessionID)
