@@ -59,13 +59,8 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 	if sessionID == "" {
 		log.Fatal("environment variable ALLOYDB_SESSION_ID is empty")
 	}
-	// Requires environment variable ALLOYDB_SCHEMA to be set.
-	schemaName := os.Getenv("ALLOYDB_SCHEMA")
-	if schemaName == "" {
-		log.Fatal("environment variable ALLOYDB_SCHEMA is empty")
-	}
 
-	return username, password, database, projectID, region, instance, cluster, tableName, sessionID, schemaName
+	return username, password, database, projectID, region, instance, cluster, tableName, sessionID
 }
 
 func printMessages(ctx context.Context, cmh alloydb.ChatMessageHistory) {
@@ -80,7 +75,7 @@ func printMessages(ctx context.Context, cmh alloydb.ChatMessageHistory) {
 
 func main() {
 	// Requires that the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, cluster, tableName, sessionID, schemaName := getEnvVariables()
+	username, password, database, projectID, region, instance, cluster, tableName, sessionID := getEnvVariables()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
@@ -94,13 +89,13 @@ func main() {
 	}
 
 	// Creates a new table in the Postgres database, which will be used for storing Chat History.
-	err = pgEngine.InitChatHistoryTable(ctx, tableName, schemaName)
+	err = pgEngine.InitChatHistoryTable(ctx, tableName, "")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Creates a new Chat Message History
-	cmh, err := alloydb.NewChatMessageHistory(ctx, *pgEngine, tableName, sessionID, alloydb.WithSchemaName(schemaName), alloydb.WithOverwrite())
+	cmh, err := alloydb.NewChatMessageHistory(ctx, *pgEngine, tableName, sessionID, alloydb.WithOverwrite())
 	if err != nil {
 		log.Fatal(err)
 	}
