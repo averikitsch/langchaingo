@@ -225,3 +225,28 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, 
 
 	return messages, nil
 }
+
+// SetMessages clears the current messages from the ChatMessageHistory for a
+// given session and then adds new messages to it.
+func (c *ChatMessageHistory) SetMessages(ctx context.Context, messages []llms.ChatMessage) error {
+	if !c.overwrite {
+		return nil
+	}
+	err := c.Clear(ctx)
+	if err != nil {
+		return err
+	}
+
+	b := &pgx.Batch{}
+	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`,
+		c.schemaName, c.tableName)
+
+	for _, message := range messages {
+		data, err := json.Marshal(message.GetContent())
+		if err != nil {
+			return fmt.Errorf("failed to serialize content to JSON: %w", err)
+		}
+		b.Queue(query, c.sessionID, data, message.GetType())
+	}
+	return c.engine.Pool.SendBatch(ctx, b).Close()
+}
