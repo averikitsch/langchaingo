@@ -18,7 +18,6 @@ type ChatMessageHistory struct {
 	sessionID  string
 	tableName  string
 	schemaName string
-	overwrite  bool
 }
 
 var _ schema.ChatMessageHistory = &ChatMessageHistory{}
@@ -146,10 +145,6 @@ func (c *ChatMessageHistory) AddUserMessage(ctx context.Context, content string)
 // Clear removes all messages associated with a session from the
 // ChatMessageHistory.
 func (c *ChatMessageHistory) Clear(ctx context.Context) error {
-	if !c.overwrite {
-		return nil
-	}
-
 	query := fmt.Sprintf(`DELETE FROM "%s"."%s" WHERE session_id = $1`, c.schemaName, c.tableName)
 
 	_, err := c.engine.Pool.Exec(ctx, query, c.sessionID)
@@ -229,9 +224,6 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, 
 // SetMessages clears the current messages from the ChatMessageHistory for a
 // given session and then adds new messages to it.
 func (c *ChatMessageHistory) SetMessages(ctx context.Context, messages []llms.ChatMessage) error {
-	if !c.overwrite {
-		return nil
-	}
 	err := c.Clear(ctx)
 	if err != nil {
 		return err
