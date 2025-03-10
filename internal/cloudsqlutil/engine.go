@@ -1,16 +1,15 @@
 package cloudsqlutil
 
 import (
+	"cloud.google.com/go/cloudsqlconn"
 	"context"
 	"errors"
 	"fmt"
-	"net"
-
-	"cloud.google.com/go/cloudsqlconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
+	"net"
 )
 
 type EmailRetriever func(ctx context.Context) (string, error)
@@ -128,23 +127,4 @@ func getServiceAccountEmail(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get user info: %w", err)
 	}
 	return userInfo.Email, nil
-}
-
-// initChatHistoryTable creates a table to store chat history.
-func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName string, opts ...OptionInitChatHistoryTable) error {
-	cfg := applyChatMessageHistoryOptions(opts...)
-
-	createTableQuery := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s"."%s" (
-		id SERIAL PRIMARY KEY,
-		session_id TEXT NOT NULL,
-		data JSONB NOT NULL,
-		type TEXT NOT NULL
-	);`, cfg.schemaName, tableName)
-
-	// Execute the query
-	_, err := p.Pool.Exec(ctx, createTableQuery)
-	if err != nil {
-		return fmt.Errorf("failed to execute query: %v", err)
-	}
-	return nil
 }
