@@ -89,7 +89,7 @@ func main() {
 	}
 
 	// Creates a new table in the Postgres database, which will be used for storing Chat History.
-	err = pgEngine.InitChatHistoryTable(ctx, tableName, "")
+	err = pgEngine.InitChatHistoryTable(ctx, tableName)
 	if err != nil {
 		log.Fatal(err)
 	}
