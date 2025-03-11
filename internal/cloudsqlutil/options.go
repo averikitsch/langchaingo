@@ -7,6 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	defaultSchemaName = "public"
+)
+
 // Option is a function type that can be used to modify the Engine.
 type Option func(p *engineConfig)
 
@@ -94,4 +98,31 @@ func applyClientOptions(opts ...Option) (engineConfig, error) {
 	}
 
 	return *cfg, nil
+}
+
+// Option function type
+type OptionInitChatHistoryTable func(*InitChatHistoryTableOptions)
+
+// Option type for defining options
+type InitChatHistoryTableOptions struct {
+	schemaName string
+}
+
+// WithSchemaName sets a custom schema name
+func WithSchemaName(schemaName string) OptionInitChatHistoryTable {
+	return func(i *InitChatHistoryTableOptions) {
+		i.schemaName = schemaName
+	}
+}
+
+// applyChatMessageHistoryOptions applies the given options to the
+// ChatMessageHistory.
+func applyChatMessageHistoryOptions(opts ...OptionInitChatHistoryTable) InitChatHistoryTableOptions {
+	cfg := &InitChatHistoryTableOptions{
+		schemaName: defaultSchemaName,
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return *cfg
 }
