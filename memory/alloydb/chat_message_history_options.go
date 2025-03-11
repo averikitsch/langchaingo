@@ -15,14 +15,6 @@ func WithSchemaName(schemaName string) ChatMessageHistoryStoresOption {
 	}
 }
 
-// WithOverwrite is an option for NewChatMessageHistory for
-// allowing dangerous operations like SetMessages or Clear.
-func WithOverwrite() ChatMessageHistoryStoresOption {
-	return func(c *ChatMessageHistory) {
-		c.overwrite = true
-	}
-}
-
 // applyChatMessageHistoryOptions applies the given options to the
 // ChatMessageHistory.
 func applyChatMessageHistoryOptions(cmh ChatMessageHistory, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
