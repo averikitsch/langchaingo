@@ -1,6 +1,6 @@
 # Google CloudSQL Chat Message History Example
 
-This example demonstrates how to use [CloudSQL for Postgres](https://cloud.google.com/products/sql) as a backend for the ChatMessageHistory for LangChain in Go.
+This example demonstrates how to use [CloudSQL for Postgres](https://cloud.google.com/sql) as a backend for the ChatMessageHistory for LangChain in Go.
 
 ## What This Example Does
 
