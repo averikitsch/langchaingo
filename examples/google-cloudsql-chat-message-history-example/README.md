@@ -26,7 +26,7 @@ This example demonstrates how to use [CloudSQL for Postgres](https://cloud.googl
 
 ## How to Run the Example
 
-1. Set the following environment variables. Your CloudSQL values can be found in the [Google Cloud Console](https://console.cloud.google.com/sql/instances)):
+1. Set the following environment variables. Your CloudSQL values can be found in the [Google Cloud Console](https://console.cloud.google.com/sql/instances):
    ```
    export PROJECT_ID=<your project Id>
    export CLOUDSQL_USERNAME=<your user>
