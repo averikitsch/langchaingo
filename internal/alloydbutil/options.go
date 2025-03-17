@@ -26,6 +26,7 @@ type engineConfig struct {
 	ipType          string
 	iamAccountEmail string
 	emailRetreiver  EmailRetriever
+	userAgents      []string
 }
 
 // VectorstoreTableOptions is used with the InitVectorstoreTable to use the required and default fields.
@@ -99,6 +100,13 @@ func WithIAMAccountEmail(email string) Option {
 func withServiceAccountRetriever(emailRetriever func(context.Context) (string, error)) Option {
 	return func(p *engineConfig) {
 		p.emailRetreiver = emailRetriever
+	}
+}
+
+// WithUserAgent returns an Option that sets the User-Agent.
+func WithUserAgent(ua string) Option {
+	return func(p *engineConfig) {
+		p.userAgents = append(p.userAgents, ua)
 	}
 }
 
