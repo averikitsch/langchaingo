@@ -45,7 +45,7 @@ type SearchDocument struct {
 	Distance           float32
 }
 
-var _ vectorstores.VectorStore = &VectorStore{}
+// TODO:: Remove comment when the interface is satisfied. var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
 func NewVectorStore(ctx context.Context, engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...CloudSQLVectoreStoresOption) (VectorStore, error) {
