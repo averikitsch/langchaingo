@@ -1,5 +1,4 @@
-# AlloyDB for PostgreSQL for LangChain
-==================================================
+# AlloyDB for PostgreSQL for LangChain Go
 
 - [Product Documentation](https://cloud.google.com/alloydb)
 
@@ -13,7 +12,6 @@ AlloyDB instances from the LangChain ecosystem while providing the following ben
 - **Better integration with AlloyDB**: built-in methods to take advantage of AlloyDB's advanced indexing and scalability capabilities.
 
 ## Quick Start
------------
 
 In order to use this package, you first need to go through the following
 steps:
@@ -58,8 +56,8 @@ func NewAlloyDBEngine(ctx context.Context) (*alloydbutil.PostgresEngine, error) 
 func main() {
     ctx := context.Background()
     alloyDBEngine, err := NewAlloyDBEngine(ctx)
-        if err != nil {
-        return nil, err
+    if err != nil {
+         return nil, err
     }
 }
 ```
@@ -104,7 +102,7 @@ func NewAlloyDBWithPoolEngine(ctx context.Context) (*alloydbutil.PostgresEngine,
 func main() {
     ctx := context.Background()
     alloyDBEngine, err := NewAlloyDBWithPoolEngine(ctx)
-        if err != nil {
+    if err != nil {
         return nil, err
     }
 }
@@ -144,20 +142,20 @@ func NewAlloyDBEngine(ctx context.Context) (*alloydbutil.PostgresEngine, error) 
 func main() {
     ctx := context.Background()
     alloyDBEngine, err := NewAlloyDBEngine(ctx)
-        if err != nil {
+    if err != nil {
         return nil, err
     }
 
     // Initialize VertexAI LLM
-	llm, err := vertex.New(ctx, vertex.WithCloudProject("my-project-id"), vertex.WithCloudLocation("my-vertex-locations"), vertex.WithDefaultModel("text-embedding-005"))
-	if err != nil {
-		log.Fatal(err)
+    llm, err := vertex.New(ctx, vertex.WithCloudProject("my-project-id"), vertex.WithCloudLocation("my-vertex-locations"), vertex.WithDefaultModel("text-embedding-005"))
+    if err != nil {
+        log.Fatal(err)
 	}
 
-	myEmbedder, err := embeddings.NewEmbedder(llm)
-	if err != nil {
-		log.Fatal(err)
-	}
+    myEmbedder, err := embeddings.NewEmbedder(llm)
+    if err != nil {
+        log.Fatal(err)
+    }
 
     vectorStore := alloydb.NewVectorStore(ctx, alloyDBEngine, myEmbedder, "my-table", alloydb.WithMetadataColumns([]string{"column1", "column2"}))
 }
