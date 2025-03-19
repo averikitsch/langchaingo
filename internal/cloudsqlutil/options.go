@@ -25,6 +25,7 @@ type engineConfig struct {
 	ipType          string
 	iAmAccountEmail string
 	emailRetreiver  EmailRetriever
+	userAgents      []string
 }
 
 // WithCloudSQLInstance sets the project, region, and instance fields.
@@ -82,6 +83,13 @@ func WithIAMAccountEmail(email string) Option {
 func withServiceAccountRetriever(emailRetriever func(context.Context) (string, error)) Option {
 	return func(p *engineConfig) {
 		p.emailRetreiver = emailRetriever
+	}
+}
+
+// WithUserAgent returns an Option that sets the User-Agent.
+func WithUserAgent(ua string) Option {
+	return func(p *engineConfig) {
+		p.userAgents = append(p.userAgents, ua)
 	}
 }
 
