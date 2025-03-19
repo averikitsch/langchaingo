@@ -105,7 +105,7 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{})
+	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
 	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestIsValidIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{})
+	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
 	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
