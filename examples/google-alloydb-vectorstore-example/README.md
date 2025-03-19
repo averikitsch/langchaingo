@@ -22,7 +22,7 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 
 ## How to Run the Example
 
-1. Set the following environment variables. Your AlloyDB values can be found in the [Google Cloud Console](https://console.cloud.google.com/alloydb/clusters)):
+1. Set the following environment variables. Your AlloyDB values can be found in the [Google Cloud Console](https://console.cloud.google.com/alloydb/clusters):
    ```
    export PROJECT_ID=<your project Id>
    export VERTEX_LOCATION=<your vertex location>

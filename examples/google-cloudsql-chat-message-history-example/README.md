@@ -1,13 +1,13 @@
-# Google AlloyDB Chat Message History Example
+# Google CloudSQL Chat Message History Example
 
-This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google.com/products/alloydb) as a backend for the ChatMessageHistory for LangChain in Go.
+This example demonstrates how to use [CloudSQL for Postgres](https://cloud.google.com/sql) as a backend for the ChatMessageHistory for LangChain in Go.
 
 ## What This Example Does
 
-1. **Creates an AlloyDB Chat Message History:**
-   - Initializes the `alloydb.PostgresEngine` object to establish a connection to the AlloyDB database.
+1. **Creates a CloudSQL Chat Message History:**
+   - Initializes the `cloudsql.PostgresEngine` object to establish a connection to the CloudSQL database.
    - Creates a new table to store the chat message history if it doesn't exist.
-   - Initializes an `alloydb.ChatMessageHistory` object, which provides methods to store, retrieve, and clear message contents with a specific session ID.
+   - Initializes a `cloudsql.ChatMessageHistory` object, which provides methods to store, retrieve, and clear message contents with a specific session ID.
 
 2. **Add Single Messages:**
    - Creates individual AI and Human messages and stores them in the chat message history.
@@ -26,26 +26,25 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 
 ## How to Run the Example
 
-1. Set the following environment variables. Your AlloyDB values can be found in the [Google Cloud Console](https://console.cloud.google.com/alloydb/clusters):
+1. Set the following environment variables. Your CloudSQL values can be found in the [Google Cloud Console](https://console.cloud.google.com/sql/instances):
    ```
    export PROJECT_ID=<your project Id>
-   export ALLOYDB_USERNAME=<your user>
-   export ALLOYDB_PASSWORD=<your password>
-   export ALLOYDB_REGION=<your region>
-   export ALLOYDB_CLUSTER=<your cluster>
-   export ALLOYDB_INSTANCE=<your instance>
-   export ALLOYDB_DATABASE=<your database>
-   export ALLOYDB_TABLE=<your tablename>
-   export ALLOYDB_SESSION_ID=<your sessionID>
+   export CLOUDSQL_USERNAME=<your user>
+   export CLOUDSQL_PASSWORD=<your password>
+   export CLOUDSQL_REGION=<your region>
+   export CLOUDSQL_INSTANCE=<your instance>
+   export CLOUDSQL_DATABASE=<your database>
+   export CLOUDSQL_TABLE=<your tablename>
+   export CLOUDSQL_SESSION_ID=<your sessionID>
    ```
 
 2. Run the Go example:
    ```
-   go run google-alloydb-chat-message-history-example.go
+   go run google-cloudsql-chat-message-history-example.go
    ```
 
 ## Key Features
-- **AlloyDB Integration**: Connects to an AlloyDB instance for storing and managing chat messages.
+- **CloudSQL Integration**: Connects to a CloudSQL instance for storing and managing chat messages.
 - **Message Storage**: Provides methods for storing chat messages with different operations like add, overwrite, and clear.
 - **Session-based Message Management**: Messages are stored and retrieved using a unique session ID, making it easy to manage separate chat sessions.
 - **Clear and Overwrite Capabilities**: Allows overwriting and clearing messages to maintain the chat history as needed.
