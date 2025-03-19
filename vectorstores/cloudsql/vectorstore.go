@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-  
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
@@ -47,7 +44,7 @@ type SearchDocument struct {
 	Distance           float32
 }
 
-// TODO:: Remove comment when the interface is satisfied. var _ vectorstores.VectorStore = &VectorStore{}
+// TODO:: Remove comment after interface is satisfied var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
 func NewVectorStore(ctx context.Context, engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...CloudSQLVectoreStoresOption) (VectorStore, error) {

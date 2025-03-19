@@ -27,7 +27,7 @@ Go version >= go 1.22.0
 
 ## Engine Creation
 
-An Engine is needed to connect and communicate with the AlloyDB Instance.
+The `AlloyDBEngine` configures a connection pool to your AlloyDB database, 
 
 ```go
 package main
@@ -66,7 +66,7 @@ See the full [Vector Store example and tutorial](https://github.com/tmc/langchai
 
 ## Engine Creation WithPool
 
-If you want to give as an argument a specific pool to manage the connections of the engine you can provide it with the WithPool method. If not provided the pool will be automatically created with the parameters user and password or with the I Am Account email. 
+Create an AlloyDBEngine with the `WithPool` method to connect to an instance of AlloyDB Omni or to customize your connection pool.
 
 
 ```go
@@ -90,7 +90,6 @@ func NewAlloyDBWithPoolEngine(ctx context.Context) (*alloydbutil.PostgresEngine,
         alloydbutil.WithUser("my-user"),
         alloydbutil.WithPassword("my-password"),
         alloydbutil.WithDatabase("my-database"),
-        alloydbutil.WithAlloyDBInstance("my-project-id", "region", "my-cluster", "my-instance"),
         alloydbutil.WithPool(myPool)
     )
     if err != nil {
@@ -125,20 +124,6 @@ import (
   "github.com/tmc/langchaingo/vectorstores/alloydb"
 )
 
-func NewAlloyDBEngine(ctx context.Context) (*alloydbutil.PostgresEngine, error) {
-	// Call NewPostgresEngine to initialize the database connection
-    pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-        alloydbutil.WithUser("my-user"),
-        alloydbutil.WithPassword("my-password"),
-        alloydbutil.WithDatabase("my-database"),
-        alloydbutil.WithAlloyDBInstance("my-project-id", "region", "my-cluster", "my-instance"),
-    )
-    if err != nil {
-        return nil, fmt.Errorf("Error creating PostgresEngine: %s", err)
-    }
-    return pgEngine, nil
-}
-
 func main() {
     ctx := context.Background()
     alloyDBEngine, err := NewAlloyDBEngine(ctx)
@@ -160,12 +145,3 @@ func main() {
     vectorStore := alloydb.NewVectorStore(ctx, alloyDBEngine, myEmbedder, "my-table", alloydb.WithMetadataColumns([]string{"column1", "column2"}))
 }
 ```
-
-## Run the Program
-
-To run the code use the command:
-
-```shell
-$ go run .
-```
-

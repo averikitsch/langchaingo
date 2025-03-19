@@ -3,13 +3,14 @@ package alloydb_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"testing"
+
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/llms/ollama"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
-	"os"
-	"testing"
 )
 
 func getEnvVariables(t *testing.T) (string, string, string, string, string, string, string) {
