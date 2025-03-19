@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
-	"strconv"
 	"strings"
 )
 
@@ -54,6 +55,90 @@ func NewVectorStore(ctx context.Context, engine cloudsqlutil.PostgresEngine, emb
 		return VectorStore{}, err
 	}
 	return vs, nil
+}
+
+// AddDocuments adds documents to the Postgres collection, and returns the ids
+// of the added documents.
+func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, _ ...vectorstores.Option) ([]string, error) {
+	var texts []string
+	for _, doc := range docs {
+		texts = append(texts, doc.PageContent)
+	}
+	embeddings, err := vs.embedder.EmbedDocuments(ctx, texts)
+	if err != nil {
+		return nil, fmt.Errorf("failed embed documents: %w", err)
+	}
+	// If no ids provided, generate them.
+	ids := make([]string, len(texts))
+	for i, doc := range docs {
+		if val, ok := doc.Metadata["id"].(string); ok {
+			ids[i] = val
+		} else {
+			ids[i] = uuid.New().String()
+		}
+	}
+	// If no metadata provided, initialize with empty maps
+	metadatas := make([]map[string]any, len(texts))
+	for i := range docs {
+		if docs[i].Metadata == nil {
+			metadatas[i] = make(map[string]any)
+		} else {
+			metadatas[i] = docs[i].Metadata
+		}
+	}
+	b := &pgx.Batch{}
+
+	for i := range texts {
+		id := ids[i]
+		content := texts[i]
+		embedding := pgvector.NewVector(embeddings[i])
+		metadata := metadatas[i]
+
+		// Construct metadata column names if present
+		metadataColNames := ""
+		if len(vs.metadataColumns) > 0 {
+			metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
+		}
+
+		if vs.metadataJsonColumn != "" {
+			metadataColNames += ", " + vs.metadataJsonColumn
+		}
+
+		insertStmt := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s, %s, %s%s)`,
+			vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
+		valuesStmt := "VALUES ($1, $2, $3"
+		values := []any{id, content, embedding}
+
+		// Add metadata
+		for _, metadataColumn := range vs.metadataColumns {
+			if val, ok := metadata[metadataColumn]; ok {
+				valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
+				values = append(values, val)
+				delete(metadata, metadataColumn)
+			} else {
+				valuesStmt += ", NULL"
+			}
+		}
+		// Add JSON column and/or close statement
+		if vs.metadataJsonColumn != "" {
+			valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
+			metadataJson, err := json.Marshal(metadata)
+			if err != nil {
+				return nil, fmt.Errorf("failed to transform metadata to json: %w", err)
+			}
+			values = append(values, metadataJson)
+		}
+		valuesStmt += ")"
+		query := insertStmt + valuesStmt
+		b.Queue(query, values...)
+	}
+
+	batchResults := vs.engine.Pool.SendBatch(ctx, b)
+	if err := batchResults.Close(); err != nil {
+		return nil, fmt.Errorf("failed to execute batch: %w", err)
+	}
+
+	return ids, nil
 }
 
 // SimilaritySearch performs a similarity search on the database using the
