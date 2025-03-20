@@ -17,7 +17,7 @@ steps:
 
 1. [Select or create a Cloud Platform project.](https://console.cloud.google.com/project)
 2. [Enable billing for your project.](https://cloud.google.com/billing/docs/how-to/modify-project#enable_billing_for_a_project)
-3. [Enable the AlloyDB API.](https://console.cloud.google.com/flows/enableapi?apiid=alloydb.googleapis.com)
+3. [Enable the Cloud SQL API.](https://console.cloud.google.com/apis/enableflow?apiid=sql.googleapis.com)
 4. [Authentication with CloudSDK.](https://cloud.google.com/sdk/gcloud/reference/auth/application-default/login)
 
 ## Supported Go Versions
@@ -79,7 +79,7 @@ import (
   "github.com/tmc/langchaingo/internal/cloudsqlutil"
 )
 
-func NewAlloyDBWithPoolEngine(ctx context.Context) (*cloudsqlutil.PostgresEngine, error) {
+func NewCloudSQLWithPoolEngine(ctx context.Context) (*cloudsqlutil.PostgresEngine, error) {
     myPool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
     if err != nil {
         return err
