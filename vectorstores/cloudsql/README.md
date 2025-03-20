@@ -1,15 +1,14 @@
-# AlloyDB for PostgreSQL for LangChain Go
+# Cloud SQL for PostgreSQL for LangChain Go
 
-- [Product Documentation](https://cloud.google.com/alloydb)
+- [Product Documentation](https://cloud.google.com/sql/docs)
 
-The **AlloyDB for PostgreSQL for LangChain** package provides a first class experience for connecting to
-AlloyDB instances from the LangChain ecosystem while providing the following benefits:
+The **Cloud SQL for PostgreSQL for LangChain** package provides a first class experience for connecting to
+Cloud SQL instances from the LangChain ecosystem while providing the following benefits:
 
 - **Simplified & Secure Connections**: easily and securely create shared connection pools to connect to Google Cloud databases utilizing IAM for authorization and database authentication without needing to manage SSL certificates, configure firewall rules, or enable authorized networks.
 - **Improved performance & Simplified management**: use a single-table schema can lead to faster query execution, especially for large collections.
 - **Improved metadata handling**: store metadata in columns instead of JSON, resulting in significant performance improvements.
 - **Clear separation**: clearly separate table and extension creation, allowing for distinct permissions and streamlined workflows.
-- **Better integration with AlloyDB**: built-in methods to take advantage of AlloyDB's advanced indexing and scalability capabilities.
 
 ## Quick Start
 
@@ -27,7 +26,7 @@ Go version >= go 1.22.0
 
 ## Engine Creation
 
-The `AlloyDBEngine` configures a connection pool to your AlloyDB database. 
+The `CloudSQLEngine` configures a connection pool to your CloudSQL database. 
 
 ```go
 package main
@@ -36,16 +35,16 @@ import (
   "context"
   "fmt"
 
-  "github.com/tmc/langchaingo/internal/alloydbutil"
+  "github.com/tmc/langchaingo/internal/cloudsqlutil"
 )
 
-func NewAlloyDBEngine(ctx context.Context) (*alloydbutil.PostgresEngine, error) {
+func NewCloudSQLEngine(ctx context.Context) (*cloudsqlutil.PostgresEngine, error) {
 	// Call NewPostgresEngine to initialize the database connection
-    pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-        alloydbutil.WithUser("my-user"),
-        alloydbutil.WithPassword("my-password"),
-        alloydbutil.WithDatabase("my-database"),
-        alloydbutil.WithAlloyDBInstance("my-project-id", "region", "my-cluster", "my-instance"),
+    pgEngine, err := cloudsqlutil.NewPostgresEngine(ctx,
+        cloudsqlutil.WithUser("my-user"),
+        cloudsqlutil.WithPassword("my-password"),
+        cloudsqlutil.WithDatabase("my-database"),
+        cloudsqlutil.WithCloudSQLInstance("my-project-id", "region", "my-instance"),
     )
     if err != nil {
         return nil, fmt.Errorf("Error creating PostgresEngine: %s", err)
@@ -55,18 +54,18 @@ func NewAlloyDBEngine(ctx context.Context) (*alloydbutil.PostgresEngine, error) 
 
 func main() {
     ctx := context.Background()
-    alloyDBEngine, err := NewAlloyDBEngine(ctx)
+    cloudSQLEngine, err := NewCloudSQLEngine(ctx)
     if err != nil {
          return nil, err
     }
 }
 ```
 
-See the full [Vector Store example and tutorial](https://github.com/tmc/langchaingo/tree/main/examples/google-alloydb-vectorstore-example).
+See the full [Vector Store example and tutorial](https://github.com/tmc/langchaingo/tree/main/examples/google-cloudsql-chat-message-history-example).
 
 ## Engine Creation WithPool
 
-Create an AlloyDBEngine with the `WithPool` method to connect to an instance of AlloyDB Omni or to customize your connection pool.
+Create a CloudSQLEngine with the `WithPool` method to connect to an instance of CloudSQL Omni or to customize your connection pool.
 
 
 ```go
@@ -77,20 +76,20 @@ import (
   "fmt"
 
   "github.com/jackc/pgx/v5/pgxpool"
-  "github.com/tmc/langchaingo/internal/alloydbutil"
+  "github.com/tmc/langchaingo/internal/cloudsqlutil"
 )
 
-func NewAlloyDBWithPoolEngine(ctx context.Context) (*alloydbutil.PostgresEngine, error) {
+func NewAlloyDBWithPoolEngine(ctx context.Context) (*cloudsqlutil.PostgresEngine, error) {
     myPool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
     if err != nil {
         return err
     }
 	// Call NewPostgresEngine to initialize the database connection
-    pgEngineWithPool, err := alloydbutil.NewPostgresEngine(ctx,
-        alloydbutil.WithUser("my-user"),
-        alloydbutil.WithPassword("my-password"),
-        alloydbutil.WithDatabase("my-database"),
-        alloydbutil.WithPool(myPool)
+    pgEngineWithPool, err := cloudsqlutil.NewPostgresEngine(ctx,
+        cloudsqlutil.WithUser("my-user"),
+        cloudsqlutil.WithPassword("my-password"),
+        cloudsqlutil.WithDatabase("my-database"),
+        cloudsqlutil.WithPool(myPool)
     )
     if err != nil {
         return nil, fmt.Errorf("Error creating PostgresEngine with pool: %s", err)
@@ -100,7 +99,7 @@ func NewAlloyDBWithPoolEngine(ctx context.Context) (*alloydbutil.PostgresEngine,
 
 func main() {
     ctx := context.Background()
-    alloyDBEngine, err := NewAlloyDBWithPoolEngine(ctx)
+    cloudSQLEngine, err := NewCloudSQLWithPoolEngine(ctx)
     if err != nil {
         return nil, err
     }
@@ -119,14 +118,14 @@ import (
   "fmt"
 
   "github.com/tmc/langchaingo/embeddings"
-  "github.com/tmc/langchaingo/internal/alloydbutil"
+  "github.com/tmc/langchaingo/internal/cloudsqlutil"
   "github.com/tmc/langchaingo/llms/googleai/vertex"
-  "github.com/tmc/langchaingo/vectorstores/alloydb"
+  "github.com/tmc/langchaingo/vectorstores/cloudsql"
 )
 
 func main() {
     ctx := context.Background()
-    alloyDBEngine, err := NewAlloyDBEngine(ctx)
+    cloudSQLEngine, err := NewCloudSQLEngine(ctx)
     if err != nil {
         return nil, err
     }
@@ -142,6 +141,6 @@ func main() {
         log.Fatal(err)
     }
 
-    vectorStore := alloydb.NewVectorStore(ctx, alloyDBEngine, myEmbedder, "my-table", alloydb.WithMetadataColumns([]string{"column1", "column2"}))
+    vectorStore := cloudsql.NewVectorStore(ctx, cloudSQLEngine, myEmbedder, "my-table", cloudsql.WithMetadataColumns([]string{"column1", "column2"}))
 }
 ```
