@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/alloydbutil"
+	"github.com/tmc/langchaingo/llms/googleai"
 	"github.com/tmc/langchaingo/llms/googleai/vertex"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -13,7 +14,7 @@ import (
 	"os"
 )
 
-func getEnvVariables() (string, string, string, string, string, string, string, string, string) {
+func getEnvVariables() (string, string, string, string, string, string, string, string, string, string) {
 	// Requires environment variable ALLOYDB_USERNAME to be set.
 	username := os.Getenv("ALLOYDB_USERNAME")
 	if username == "" {
@@ -61,12 +62,18 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 		log.Fatal("env variable VERTEX_LOCATION is empty")
 	}
 
-	return username, password, database, projectID, region, instance, cluster, table, location
+	// Requires environment variable GOOGLE_API_KEY to be set.
+	googleApikey := os.Getenv("GOOGLE_API_KEY")
+	if googleApikey == "" {
+		log.Fatal("env variable GOOGLE_API_KEY is empty")
+	}
+
+	return username, password, database, projectID, region, instance, cluster, table, location, googleApikey
 }
 
 func main() {
 	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, cluster, table, vertexLocation := getEnvVariables()
+	username, password, database, projectID, region, instance, cluster, table, vertexLocation, googleApikey := getEnvVariables()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
@@ -108,7 +115,7 @@ func main() {
 	}
 
 	// Initialize VertexAI LLM
-	llm, err := vertex.New(ctx, vertex.WithCloudProject(projectID), vertex.WithCloudLocation(vertexLocation), vertex.WithDefaultModel("text-embedding-005"))
+	llm, err := vertex.New(ctx, googleai.WithAPIKey(googleApikey), googleai.WithCloudProject(projectID), googleai.WithCloudLocation(vertexLocation), googleai.WithDefaultModel("text-embedding-005"))
 	if err != nil {
 		log.Fatal(err)
 	}
