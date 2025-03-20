@@ -22,7 +22,7 @@ type VectorStore struct {
 	tableName          string
 	schemaName         string
 	idColumn           string
-	metadataJsonColumn string
+	metadataJSONColumn string
 	contentColumn      string
 	embeddingColumn    string
 	metadataColumns    []string
@@ -39,15 +39,16 @@ type BaseIndex struct {
 }
 
 type SearchDocument struct {
-	Content            string
-	Langchain_metadata string
-	Distance           float32
+	Content           string
+	LangchainMetadata string
+	Distance          float32
 }
 
 // TODO:: Remove comment after interface is satisfied var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
-func NewVectorStore(ctx context.Context, engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...CloudSQLVectoreStoresOption) (VectorStore, error) {
+func NewVectorStore(engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
+	opts ...CloudSQLVectoreStoresOption) (VectorStore, error) {
 	vs, err := applyCloudSQLVectorStoreOptions(engine, embedder, tableName, opts...)
 	if err != nil {
 		return VectorStore{}, err
@@ -98,11 +99,11 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 			metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
 		}
 
-		if vs.metadataJsonColumn != "" {
-			metadataColNames += ", " + vs.metadataJsonColumn
+		if vs.metadataJSONColumn != "" {
+			metadataColNames += ", " + vs.metadataJSONColumn
 		}
 
-		insertStmt := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s, %s, %s%s)`,
+		insertStmt := fmt.Sprintf(`INSERT INTO %q.%q (%s, %s, %s%s)`,
 			vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
 		valuesStmt := "VALUES ($1, $2, $3"
 		values := []any{id, content, embedding}
@@ -118,13 +119,13 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 			}
 		}
 		// Add JSON column and/or close statement
-		if vs.metadataJsonColumn != "" {
+		if vs.metadataJSONColumn != "" {
 			valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
-			metadataJson, err := json.Marshal(metadata)
+			metadataJSON, err := json.Marshal(metadata)
 			if err != nil {
 				return nil, fmt.Errorf("failed to transform metadata to json: %w", err)
 			}
-			values = append(values, metadataJson)
+			values = append(values, metadataJSON)
 		}
 		valuesStmt += ")"
 		query := insertStmt + valuesStmt
@@ -142,10 +143,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 // SimilaritySearch performs a similarity search on the database using the
 // query vector.
 func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int, options ...vectorstores.Option) ([]schema.Document, error) {
-	opts, err := applyOpts(options...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply vector store options: %w", err)
-	}
+	opts := applyOpts(options...)
 	var documents []schema.Document
 	embedding, err := vs.embedder.EmbedQuery(ctx, query)
 	if err != nil {
@@ -155,8 +153,8 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	searchFunction := vs.distanceStrategy.similaritySearchFunction()
 
 	columns := append(vs.metadataColumns, vs.contentColumn)
-	if vs.metadataJsonColumn != "" {
-		columns = append(columns, vs.metadataJsonColumn)
+	if vs.metadataJSONColumn != "" {
+		columns = append(columns, vs.metadataJSONColumn)
 	}
 	columnNames := strings.Join(columns, `, `)
 	whereClause := ""
@@ -166,7 +164,8 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	vector := pgvector.NewVector(embedding)
 	stmt := fmt.Sprintf(`
         SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
-		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vector.String())
+		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName,
+		whereClause, vs.embeddingColumn, operator, vector.String())
 
 	results, err := vs.executeSQLQuery(ctx, stmt)
 	if err != nil {
@@ -190,7 +189,7 @@ func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]Sear
 	for rows.Next() {
 		doc := SearchDocument{}
 
-		err = rows.Scan(&doc.Content, &doc.Langchain_metadata, &doc.Distance)
+		err = rows.Scan(&doc.Content, &doc.LangchainMetadata, &doc.Distance)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan result: %w", err)
 		}
@@ -202,12 +201,11 @@ func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]Sear
 	return results, nil
 }
 
-func (vs *VectorStore) processResultsToDocuments(results []SearchDocument) ([]schema.Document, error) {
+func (*VectorStore) processResultsToDocuments(results []SearchDocument) ([]schema.Document, error) {
 	var documents []schema.Document
 	for _, result := range results {
-
 		mapMetadata := map[string]any{}
-		err := json.Unmarshal([]byte(result.Langchain_metadata), &mapMetadata)
+		err := json.Unmarshal([]byte(result.LangchainMetadata), &mapMetadata)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal langchain metadata: %w", err)
 		}
@@ -297,12 +295,13 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	if indexName == "" {
 		indexName = vs.tableName + defaultIndexNameSuffix
 	}
-	query := fmt.Sprintf("SELECT tablename, indexname  FROM pg_indexes WHERE tablename = '%s' AND schemaname = '%s' AND indexname = '%s';", vs.tableName, vs.schemaName, indexName)
-	var tablename, indexnameFromDb string
-	err := vs.engine.Pool.QueryRow(ctx, query).Scan(&tablename, &indexnameFromDb)
+	query := fmt.Sprintf("SELECT tablename, indexname  FROM pg_indexes WHERE tablename = '%s' AND schemaname = '%s' AND indexname = '%s';",
+		vs.tableName, vs.schemaName, indexName)
+	var tablename, indexnameFromDB string
+	err := vs.engine.Pool.QueryRow(ctx, query).Scan(&tablename, &indexnameFromDB)
 	if err != nil {
 		return false, fmt.Errorf("failed to check if index exists: %w", err)
 	}
 
-	return indexnameFromDb == indexName, nil
+	return indexnameFromDB == indexName, nil
 }

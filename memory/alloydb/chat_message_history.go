@@ -23,7 +23,8 @@ type ChatMessageHistory struct {
 var _ schema.ChatMessageHistory = &ChatMessageHistory{}
 
 // NewChatMessageHistory creates a new NewChatMessageHistory with options.
-func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngine, tableName string, sessionID string, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
+func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngine, tableName, sessionID string,
+	opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
 	var err error
 	// Ensure required fields are set
 	if engine.Pool == nil {
@@ -40,10 +41,8 @@ func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngin
 		tableName: tableName,
 		sessionID: sessionID,
 	}
-	cmh, err = applyChatMessageHistoryOptions(cmh, opts...)
-	if err != nil {
-		return ChatMessageHistory{}, fmt.Errorf("unable to apply provided options for chat message history: %w", err)
-	}
+	cmh = applyChatMessageHistoryOptions(cmh, opts...)
+
 	err = cmh.validateTable(ctx)
 	if err != nil {
 		return ChatMessageHistory{}, fmt.Errorf("error validating table '%s' in schema '%s': %w", tableName, cmh.schemaName, err)
@@ -61,7 +60,7 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	var exists bool
 	err := c.engine.Pool.QueryRow(ctx, tableExistsQuery).Scan(&exists)
 	if err != nil {
-		return fmt.Errorf("error validating the existance of table '%s' in schema '%s': %w", c.tableName, c.schemaName, err)
+		return fmt.Errorf("error validating the existence of table '%s' in schema '%s': %w", c.tableName, c.schemaName, err)
 	}
 	if !exists {
 		return fmt.Errorf("table '%s' does not exist in schema '%s'", c.tableName, c.schemaName)
@@ -104,7 +103,8 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 			return fmt.Errorf("error, column '%s' is missing in table '%s'. Expected columns: %v", reqColumn, c.tableName, requiredColumns)
 		}
 		if actualType != expectedType {
-			return fmt.Errorf("error, column '%s' in table '%s' has type '%s', but expected type '%s'", reqColumn, c.tableName, actualType, expectedType)
+			return fmt.Errorf("error, column '%s' in table '%s' has type '%s', but expected type '%s'",
+				reqColumn, c.tableName, actualType, expectedType)
 		}
 	}
 	return nil
@@ -117,7 +117,7 @@ func (c *ChatMessageHistory) addMessage(ctx context.Context, content string, mes
 	if err != nil {
 		return fmt.Errorf("failed to serialize content to JSON: %w", err)
 	}
-	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`,
+	query := fmt.Sprintf(`INSERT INTO %q.%q (session_id, data, type) VALUES ($1, $2, $3)`,
 		c.schemaName, c.tableName)
 
 	_, err = c.engine.Pool.Exec(ctx, query, c.sessionID, data, messageType)
@@ -145,7 +145,7 @@ func (c *ChatMessageHistory) AddUserMessage(ctx context.Context, content string)
 // Clear removes all messages associated with a session from the
 // ChatMessageHistory.
 func (c *ChatMessageHistory) Clear(ctx context.Context) error {
-	query := fmt.Sprintf(`DELETE FROM "%s"."%s" WHERE session_id = $1`,
+	query := fmt.Sprintf(`DELETE FROM %q.%q WHERE session_id = $1`,
 		c.schemaName, c.tableName)
 
 	_, err := c.engine.Pool.Exec(ctx, query, c.sessionID)
@@ -159,7 +159,7 @@ func (c *ChatMessageHistory) Clear(ctx context.Context) error {
 // session.
 func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.ChatMessage) error {
 	b := &pgx.Batch{}
-	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`,
+	query := fmt.Sprintf(`INSERT INTO %q.%q (session_id, data, type) VALUES ($1, $2, $3)`,
 		c.schemaName, c.tableName)
 
 	for _, message := range messages {
@@ -176,7 +176,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 // ChatMessageHistory.
 func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
 	query := fmt.Sprintf(
-		`SELECT id, session_id, data, type, timestamp FROM "%s"."%s" WHERE session_id = $1 ORDER BY id`,
+		`SELECT id, session_id, data, type, timestamp FROM %q.%q WHERE session_id = $1 ORDER BY id`,
 		c.schemaName, c.tableName,
 	)
 
@@ -231,7 +231,7 @@ func (c *ChatMessageHistory) SetMessages(ctx context.Context, messages []llms.Ch
 	}
 
 	b := &pgx.Batch{}
-	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (session_id, data, type) VALUES ($1, $2, $3)`,
+	query := fmt.Sprintf(`INSERT INTO %q.%q (session_id, data, type) VALUES ($1, $2, $3)`,
 		c.schemaName, c.tableName)
 
 	for _, message := range messages {

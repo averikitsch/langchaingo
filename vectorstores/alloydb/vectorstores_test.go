@@ -58,7 +58,7 @@ func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
 	if err != nil {
-		t.Fatal("Could not set Engine: ", err)
+		return alloydbutil.PostgresEngine{}, err
 	}
 
 	return *pgEngine, nil
@@ -67,22 +67,21 @@ func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
 func setVectoreStore(t *testing.T) (alloydb.VectorStore, error) {
 	pgEngine, err := setEngine(t)
 	if err != nil {
-		t.Fatal(err)
+		return alloydb.VectorStore{}, err
 	}
-	ctx := context.Background()
 	llmm, err := ollama.New(
 		ollama.WithModel("llama3"),
 	)
 	if err != nil {
-		t.Fatal(err)
+		return alloydb.VectorStore{}, err
 	}
 	e, err := embeddings.NewEmbedder(llmm)
 	if err != nil {
 		t.Fatal(err)
 	}
-	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, "items")
+	vs, err := alloydb.NewVectorStore(pgEngine, e, "items")
 	if err != nil {
-		t.Fatal(err)
+		return alloydb.VectorStore{}, err
 	}
 	return vs, nil
 }

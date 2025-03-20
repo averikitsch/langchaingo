@@ -86,12 +86,7 @@ func NewAlloyDBWithPoolEngine(ctx context.Context) (*alloydbutil.PostgresEngine,
         return err
     }
 	// Call NewPostgresEngine to initialize the database connection
-    pgEngineWithPool, err := alloydbutil.NewPostgresEngine(ctx,
-        alloydbutil.WithUser("my-user"),
-        alloydbutil.WithPassword("my-password"),
-        alloydbutil.WithDatabase("my-database"),
-        alloydbutil.WithPool(myPool)
-    )
+    pgEngineWithPool, err := alloydbutil.NewPostgresEngine(ctx, alloydbutil.WithPool(myPool))
     if err != nil {
         return nil, fmt.Errorf("Error creating PostgresEngine with pool: %s", err)
     }
@@ -129,9 +124,15 @@ func main() {
     if err != nil {
         return nil, err
     }
+    
+	// Creates a new table in the Postgres database, which will be used for storing Chat History.
+	err = alloyDBEngine.InitChatHistoryTable(ctx, "tableName")
+	if err != nil {
+		log.Fatal(err)
+	}
 
     // Creates a new Chat Message History
-    cmh, err := alloydb.NewChatMessageHistory(ctx, *pgEngine, tableName, sessionID)
+    cmh, err := alloydb.NewChatMessageHistory(ctx, *alloyDBEngine, "tableName", "sessionID")
     if err != nil {
         log.Fatal(err)
     }

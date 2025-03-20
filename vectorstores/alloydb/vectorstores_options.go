@@ -13,7 +13,7 @@ const (
 	defaultIDColumn           = "langchain_id"
 	defaultContentColumn      = "content"
 	defaultEmbeddingColumn    = "embedding"
-	defaultMetadataJsonColumn = "langchain_metadata"
+	defaultMetadataJSONColumn = "langchain_metadata"
 	defaultK                  = 4
 )
 
@@ -35,10 +35,10 @@ func WithIDColumn(idColumn string) AlloyDBVectoreStoresOption {
 	}
 }
 
-// WithMetadataJsonColumn sets VectorStore's the metadataJsonColumn field.
-func WithMetadataJsonColumn(metadataJsonColumn string) AlloyDBVectoreStoresOption {
+// WithMetadataJSONColumn sets VectorStore's the metadataJSONColumn field.
+func WithMetadataJSONColumn(metadataJSONColumn string) AlloyDBVectoreStoresOption {
 	return func(v *VectorStore) {
-		v.metadataJsonColumn = metadataJsonColumn
+		v.metadataJSONColumn = metadataJSONColumn
 	}
 }
 
@@ -79,7 +79,8 @@ func WithDistanceStrategy(distanceStrategy distanceStrategy) AlloyDBVectoreStore
 
 // applyAlloyDBVectorStoreOptions applies the given VectorStore options to the
 // VectorStore with an alloydb Engine.
-func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
+func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
+	opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return VectorStore{}, errors.New("missing vector store engine")
@@ -98,7 +99,7 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 		idColumn:           defaultIDColumn,
 		contentColumn:      defaultContentColumn,
 		embeddingColumn:    defaultEmbeddingColumn,
-		metadataJsonColumn: defaultMetadataJsonColumn,
+		metadataJSONColumn: defaultMetadataJSONColumn,
 		k:                  defaultK,
 		distanceStrategy:   defaultDistanceStrategy,
 		metadataColumns:    []string{},
@@ -110,10 +111,10 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 	return *vs, nil
 }
 
-func applyOpts(options ...vectorstores.Option) (vectorstores.Options, error) {
+func applyOpts(options ...vectorstores.Option) vectorstores.Options {
 	opts := vectorstores.Options{}
 	for _, opt := range options {
 		opt(&opts)
 	}
-	return opts, nil
+	return opts
 }

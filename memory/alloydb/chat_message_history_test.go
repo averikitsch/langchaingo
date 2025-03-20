@@ -13,11 +13,11 @@ import (
 
 type chatMsg struct{}
 
-func (c chatMsg) GetType() llms.ChatMessageType {
+func (chatMsg) GetType() llms.ChatMessageType {
 	return llms.ChatMessageTypeHuman
 }
 
-func (c chatMsg) GetContent() string {
+func (chatMsg) GetContent() string {
 	return "test content"
 }
 
@@ -85,7 +85,7 @@ func TestValidateTable(t *testing.T) {
 		err       string
 	}{
 		{
-			desc:      "Succesful creation of Chat Message History",
+			desc:      "Successful creation of Chat Message History",
 			tableName: "items",
 			sessionID: "session",
 			err:       "",
@@ -115,7 +115,7 @@ func TestValidateTable(t *testing.T) {
 					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
 				}
 			}
-			// if the chat message history was created succesfully, continue with the other methods tests
+			// if the chat message history was created successfully, continue with the other methods tests
 			if err == nil {
 				err = chatMsgHistory.AddMessage(ctx, chatMsg{})
 				if err != nil {
