@@ -2,6 +2,7 @@ package cloudsql
 
 import (
 	"errors"
+
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/internal/cloudsqlutil"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -12,7 +13,7 @@ const (
 	defaultIDColumn           = "langchain_id"
 	defaultContentColumn      = "content"
 	defaultEmbeddingColumn    = "embedding"
-	defaultMetadataJsonColumn = "langchain_metadata"
+	defaultMetadataJSONColumn = "langchain_metadata"
 	defaultK                  = 4
 )
 
@@ -34,10 +35,10 @@ func WithIDColumn(idColumn string) CloudSQLVectoreStoresOption {
 	}
 }
 
-// WithMetadataJsonColumn sets VectorStore's the metadataJsonColumn field.
-func WithMetadataJsonColumn(metadataJsonColumn string) CloudSQLVectoreStoresOption {
+// WithMetadataJSONColumn sets VectorStore's the metadataJSONColumn field.
+func WithMetadataJSONColumn(metadataJSONColumn string) CloudSQLVectoreStoresOption {
 	return func(v *VectorStore) {
-		v.metadataJsonColumn = metadataJsonColumn
+		v.metadataJSONColumn = metadataJSONColumn
 	}
 }
 
@@ -78,7 +79,8 @@ func WithDistanceStrategy(distanceStrategy distanceStrategy) CloudSQLVectoreStor
 
 // CloudSQLVectoreStoresOption applies the given VectorStore options to the
 // VectorStore with a cloudsql Engine.
-func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...CloudSQLVectoreStoresOption) (VectorStore, error) {
+func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
+	opts ...CloudSQLVectoreStoresOption) (VectorStore, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return VectorStore{}, errors.New("missing vector store engine")
@@ -97,7 +99,7 @@ func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine, embedde
 		idColumn:           defaultIDColumn,
 		contentColumn:      defaultContentColumn,
 		embeddingColumn:    defaultEmbeddingColumn,
-		metadataJsonColumn: defaultMetadataJsonColumn,
+		metadataJSONColumn: defaultMetadataJSONColumn,
 		k:                  defaultK,
 		distanceStrategy:   defaultDistanceStrategy,
 		metadataColumns:    []string{},
@@ -109,10 +111,10 @@ func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine, embedde
 	return *vs, nil
 }
 
-func applyOpts(options ...vectorstores.Option) (vectorstores.Options, error) {
+func applyOpts(options ...vectorstores.Option) vectorstores.Options {
 	opts := vectorstores.Options{}
 	for _, opt := range options {
 		opt(&opts)
 	}
-	return opts, nil
+	return opts
 }

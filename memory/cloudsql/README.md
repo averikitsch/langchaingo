@@ -85,12 +85,7 @@ func NewCloudSQLWithPoolEngine(ctx context.Context) (*cloudsqlutil.PostgresEngin
         return err
     }
 	// Call NewPostgresEngine to initialize the database connection
-    pgEngineWithPool, err := cloudsqlutil.NewPostgresEngine(ctx,
-        cloudsqlutil.WithUser("my-user"),
-        cloudsqlutil.WithPassword("my-password"),
-        cloudsqlutil.WithDatabase("my-database"),
-        cloudsqlutil.WithPool(myPool)
-    )
+    pgEngineWithPool, err := cloudsqlutil.NewPostgresEngine(ctx, cloudsqlutil.WithPool(myPool))
     if err != nil {
         return nil, fmt.Errorf("Error creating PostgresEngine with pool: %s", err)
     }
@@ -129,8 +124,14 @@ func main() {
         return nil, err
     }
 
+	// Creates a new table in the Postgres database, which will be used for storing Chat History.
+	err = cloudSQLEngine.InitChatHistoryTable(ctx, "tableName")
+	if err != nil {
+		log.Fatal(err)
+	}
+
     // Creates a new Chat Message History
-    cmh, err := cloudsql.NewChatMessageHistory(ctx, *cloudSQLEngine, tableName, sessionID)
+    cmh, err := cloudsql.NewChatMessageHistory(ctx, *cloudSQLEngine, "tableName", "sessionID")
     if err != nil {
         log.Fatal(err)
     }

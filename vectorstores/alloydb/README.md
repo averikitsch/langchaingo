@@ -86,12 +86,7 @@ func NewAlloyDBWithPoolEngine(ctx context.Context) (*alloydbutil.PostgresEngine,
         return err
     }
 	// Call NewPostgresEngine to initialize the database connection
-    pgEngineWithPool, err := alloydbutil.NewPostgresEngine(ctx,
-        alloydbutil.WithUser("my-user"),
-        alloydbutil.WithPassword("my-password"),
-        alloydbutil.WithDatabase("my-database"),
-        alloydbutil.WithPool(myPool)
-    )
+    pgEngineWithPool, err := alloydbutil.NewPostgresEngine(ctx, alloydbutil.WithPool(myPool))
     if err != nil {
         return nil, fmt.Errorf("Error creating PostgresEngine with pool: %s", err)
     }
@@ -131,8 +126,35 @@ func main() {
         return nil, err
     }
 
+    // Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
+    vectorstoreTableoptions, err := &alloydbutil.VectorstoreTableOptions{
+        TableName:  "table",
+        VectorSize: 768,
+    }
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    err = alloyDBEngine.InitVectorstoreTable(ctx, *vectorstoreTableoptions,
+        []alloydbutil.Column{
+            alloydbutil.Column{
+                Name:     "area",
+                DataType: "int",
+                Nullable: false,
+            },
+            alloydbutil.Column{
+                Name:     "population",
+                DataType: "int",
+                Nullable: false,
+            },
+        },
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
     // Initialize VertexAI LLM
-    llm, err := vertex.New(ctx, vertex.WithCloudProject("my-project-id"), vertex.WithCloudLocation("my-vertex-locations"), vertex.WithDefaultModel("text-embedding-005"))
+    llm, err := vertex.New(ctx, googleai.WithAPIKey(googleApikey), googleai.WithCloudProject(projectID), googleai.WithCloudLocation(vertexLocation), googleai.WithDefaultModel("text-embedding-005"))
     if err != nil {
         log.Fatal(err)
 	}
@@ -142,6 +164,6 @@ func main() {
         log.Fatal(err)
     }
 
-    vectorStore := alloydb.NewVectorStore(ctx, alloyDBEngine, myEmbedder, "my-table", alloydb.WithMetadataColumns([]string{"column1", "column2"}))
+    vectorStore := alloydb.NewVectorStore(alloyDBEngine, myEmbedder, "my-table", alloydb.WithMetadataColumns([]string{"area", "population"}))
 }
 ```
