@@ -149,15 +149,15 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 		return fmt.Errorf("missing vector size in options")
 	}
 
-	if opts.SchemaName != "" {
+	if opts.SchemaName == "" {
 		opts.SchemaName = "public"
 	}
 
-	if opts.ContentColumnName != "" {
+	if opts.ContentColumnName == "" {
 		opts.ContentColumnName = "content"
 	}
 
-	if opts.EmbeddingColumn != "" {
+	if opts.EmbeddingColumn == "" {
 		opts.EmbeddingColumn = "embedding"
 	}
 
