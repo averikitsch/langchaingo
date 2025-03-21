@@ -148,19 +148,19 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 		return fmt.Errorf("missing vector size in options")
 	}
 
-	if opts.SchemaName != "" {
+	if opts.SchemaName == "" {
 		opts.SchemaName = "public"
 	}
 
-	if opts.ContentColumnName != "" {
+	if opts.ContentColumnName == "" {
 		opts.ContentColumnName = "content"
 	}
 
-	if opts.EmbeddingColumn != "" {
+	if opts.EmbeddingColumn == "" {
 		opts.EmbeddingColumn = "embedding"
 	}
 
-	if opts.MetadataJsonColumn != "" {
+	if opts.MetadataJsonColumn == "" {
 		opts.MetadataJsonColumn = "langchain_metadata"
 	}
 
@@ -197,10 +197,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 	}
 
 	// Build the SQL query that creates the table
-	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
-		"%s" %s PRIMARY KEY,
-		"%s" TEXT NOT NULL,
-		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
+	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" ("%s" %s PRIMARY KEY, "%s" TEXT NOT NULL, "%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
 
 	// Add metadata columns  to the query string if provided
 	for _, column := range opts.MetadataColumns {
