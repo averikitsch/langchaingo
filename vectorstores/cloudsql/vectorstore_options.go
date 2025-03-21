@@ -17,70 +17,70 @@ const (
 	defaultK                  = 4
 )
 
-// CloudSQLVectoreStoresOption is a function for creating new vector store
+// VectoreStoresOption is a function for creating new vector store
 // with other than the default values.
-type CloudSQLVectoreStoresOption func(vs *VectorStore)
+type VectoreStoresOption func(vs *VectorStore)
 
 // WithSchemaName sets the VectorStore's schemaName field.
-func WithSchemaName(schemaName string) CloudSQLVectoreStoresOption {
+func WithSchemaName(schemaName string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.schemaName = schemaName
 	}
 }
 
 // WithContentColumn sets VectorStore's the idColumn field.
-func WithIDColumn(idColumn string) CloudSQLVectoreStoresOption {
+func WithIDColumn(idColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.idColumn = idColumn
 	}
 }
 
 // WithMetadataJSONColumn sets VectorStore's the metadataJSONColumn field.
-func WithMetadataJSONColumn(metadataJSONColumn string) CloudSQLVectoreStoresOption {
+func WithMetadataJSONColumn(metadataJSONColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.metadataJSONColumn = metadataJSONColumn
 	}
 }
 
 // WithContentColumn sets the VectorStore's ContentColumn field.
-func WithContentColumn(contentColumn string) CloudSQLVectoreStoresOption {
+func WithContentColumn(contentColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.contentColumn = contentColumn
 	}
 }
 
 // WithEmbeddingColumn sets the EmbeddingColumn field.
-func WithEmbeddingColumn(embeddingColumn string) CloudSQLVectoreStoresOption {
+func WithEmbeddingColumn(embeddingColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.embeddingColumn = embeddingColumn
 	}
 }
 
 // WithMetadataColumns sets the VectorStore's MetadataColumns field.
-func WithMetadataColumns(metadataColumns []string) CloudSQLVectoreStoresOption {
+func WithMetadataColumns(metadataColumns []string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.metadataColumns = metadataColumns
 	}
 }
 
 // WithK sets the number of Documents to return from the VectorStore.
-func WithK(k int) CloudSQLVectoreStoresOption {
+func WithK(k int) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.k = k
 	}
 }
 
 // WithDistanceStrategy sets the distance strategy used by the VectorStore.
-func WithDistanceStrategy(distanceStrategy distanceStrategy) CloudSQLVectoreStoresOption {
+func WithDistanceStrategy(distanceStrategy distanceStrategy) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.distanceStrategy = distanceStrategy
 	}
 }
 
-// CloudSQLVectoreStoresOption applies the given VectorStore options to the
+// VectoreStoresOption applies the given VectorStore options to the
 // VectorStore with a cloudsql Engine.
 func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
-	opts ...CloudSQLVectoreStoresOption) (VectorStore, error) {
+	opts ...VectoreStoresOption) (VectorStore, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return VectorStore{}, errors.New("missing vector store engine")
@@ -91,6 +91,8 @@ func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine, embedde
 	if tableName == "" {
 		return VectorStore{}, errors.New("missing vector store table name")
 	}
+	defaultDistanceStrategy := CosineDistance{}
+
 	vs := &VectorStore{
 		engine:             engine,
 		embedder:           embedder,

@@ -86,16 +86,21 @@ func (p *PostgresEngine) Close() {
 // getUser retrieves the username, a flag indicating if IAM authentication
 // will be used and an error.
 func getUser(ctx context.Context, config engineConfig) (string, bool, error) {
-	// If neither user nor password are provided, retrieve IAM email.
-	if config.user == "" && config.password == "" {
+	switch {
+	case config.user != "" && config.password != "":
+		// If both username and password are provided use provided username.
+		return config.user, false, nil
+	case config.iamAccountEmail != "":
+		// If iamAccountEmail is provided use it as user.
+		return config.iamAccountEmail, true, nil
+	case config.user == "" && config.password == "" && config.iamAccountEmail == "":
+		// If neither user and password nor iamAccountEmail are provided,
+		// retrieve IAM email from the environment.
 		serviceAccountEmail, err := config.emailRetreiver(ctx)
 		if err != nil {
 			return "", false, fmt.Errorf("unable to retrieve service account email: %w", err)
 		}
 		return serviceAccountEmail, true, nil
-	} else if config.user != "" && config.password != "" {
-		// If both username and password are provided use default username.
-		return config.user, false, nil
 	}
 
 	// If no user can be determined, return an error.

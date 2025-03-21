@@ -56,7 +56,7 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 	return username, password, database, projectID, region, instance, cluster
 }
 
-func setEngine(t *testing.T, ctx context.Context) (alloydbutil.PostgresEngine, error) {
+func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, error) {
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
@@ -73,7 +73,7 @@ func TestValidateTable(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	engine, err := setEngine(t, ctx)
+	engine, err := setEngine(ctx, t)
 	if err != nil {
 		t.Fatal(err)
 	}
