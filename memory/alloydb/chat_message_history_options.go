@@ -17,12 +17,12 @@ func WithSchemaName(schemaName string) ChatMessageHistoryStoresOption {
 
 // applyChatMessageHistoryOptions applies the given options to the
 // ChatMessageHistory.
-func applyChatMessageHistoryOptions(cmh ChatMessageHistory, opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
+func applyChatMessageHistoryOptions(cmh ChatMessageHistory, opts ...ChatMessageHistoryStoresOption) ChatMessageHistory {
 	cmh.schemaName = defaultSchemaName
 
 	// Check for optional values.
 	for _, opt := range opts {
 		opt(&cmh)
 	}
-	return cmh, nil
+	return cmh
 }

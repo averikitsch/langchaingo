@@ -13,65 +13,65 @@ const (
 	defaultIDColumn           = "langchain_id"
 	defaultContentColumn      = "content"
 	defaultEmbeddingColumn    = "embedding"
-	defaultMetadataJsonColumn = "langchain_metadata"
+	defaultMetadataJSONColumn = "langchain_metadata"
 	defaultK                  = 4
 )
 
-// AlloyDBVectoreStoresOption is a function for creating new vector store
+// VectoreStoresOption is a function for creating new vector store
 // with other than the default values.
-type AlloyDBVectoreStoresOption func(vs *VectorStore)
+type VectoreStoresOption func(vs *VectorStore)
 
 // WithSchemaName sets the VectorStore's schemaName field.
-func WithSchemaName(schemaName string) AlloyDBVectoreStoresOption {
+func WithSchemaName(schemaName string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.schemaName = schemaName
 	}
 }
 
 // WithContentColumn sets VectorStore's the idColumn field.
-func WithIDColumn(idColumn string) AlloyDBVectoreStoresOption {
+func WithIDColumn(idColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.idColumn = idColumn
 	}
 }
 
-// WithMetadataJsonColumn sets VectorStore's the metadataJsonColumn field.
-func WithMetadataJsonColumn(metadataJsonColumn string) AlloyDBVectoreStoresOption {
+// WithMetadataJSONColumn sets VectorStore's the metadataJSONColumn field.
+func WithMetadataJSONColumn(metadataJSONColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
-		v.metadataJsonColumn = metadataJsonColumn
+		v.metadataJSONColumn = metadataJSONColumn
 	}
 }
 
 // WithContentColumn sets the VectorStore's ContentColumn field.
-func WithContentColumn(contentColumn string) AlloyDBVectoreStoresOption {
+func WithContentColumn(contentColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.contentColumn = contentColumn
 	}
 }
 
 // WithEmbeddingColumn sets the EmbeddingColumn field.
-func WithEmbeddingColumn(embeddingColumn string) AlloyDBVectoreStoresOption {
+func WithEmbeddingColumn(embeddingColumn string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.embeddingColumn = embeddingColumn
 	}
 }
 
 // WithMetadataColumns sets the VectorStore's MetadataColumns field.
-func WithMetadataColumns(metadataColumns []string) AlloyDBVectoreStoresOption {
+func WithMetadataColumns(metadataColumns []string) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.metadataColumns = metadataColumns
 	}
 }
 
 // WithK sets the number of Documents to return from the VectorStore.
-func WithK(k int) AlloyDBVectoreStoresOption {
+func WithK(k int) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.k = k
 	}
 }
 
 // WithDistanceStrategy sets the distance strategy used by the VectorStore.
-func WithDistanceStrategy(distanceStrategy distanceStrategy) AlloyDBVectoreStoresOption {
+func WithDistanceStrategy(distanceStrategy distanceStrategy) VectoreStoresOption {
 	return func(v *VectorStore) {
 		v.distanceStrategy = distanceStrategy
 	}
@@ -79,7 +79,8 @@ func WithDistanceStrategy(distanceStrategy distanceStrategy) AlloyDBVectoreStore
 
 // applyAlloyDBVectorStoreOptions applies the given VectorStore options to the
 // VectorStore with an alloydb Engine.
-func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string, opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
+func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
+	opts ...VectoreStoresOption) (VectorStore, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return VectorStore{}, errors.New("missing vector store engine")
@@ -90,6 +91,8 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 	if tableName == "" {
 		return VectorStore{}, errors.New("missing vector store table name")
 	}
+	var defaultDistanceStrategy = CosineDistance{}
+
 	vs := &VectorStore{
 		engine:             engine,
 		embedder:           embedder,
@@ -98,7 +101,7 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 		idColumn:           defaultIDColumn,
 		contentColumn:      defaultContentColumn,
 		embeddingColumn:    defaultEmbeddingColumn,
-		metadataJsonColumn: defaultMetadataJsonColumn,
+		metadataJSONColumn: defaultMetadataJSONColumn,
 		k:                  defaultK,
 		distanceStrategy:   defaultDistanceStrategy,
 		metadataColumns:    []string{},
@@ -110,10 +113,10 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 	return *vs, nil
 }
 
-func applyOpts(options ...vectorstores.Option) (vectorstores.Options, error) {
+func applyOpts(options ...vectorstores.Option) vectorstores.Options {
 	opts := vectorstores.Options{}
 	for _, opt := range options {
 		opt(&opts)
 	}
-	return opts, nil
+	return opts
 }
