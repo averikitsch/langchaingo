@@ -1,7 +1,6 @@
 package cloudsqlutil
 
 import (
-	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +22,7 @@ type engineConfig struct {
 	user            string
 	password        string
 	ipType          string
-	iAmAccountEmail string
+	iamAccountEmail string
 	emailRetreiver  EmailRetriever
 }
 
@@ -74,14 +73,7 @@ func WithIPType(ipType string) Option {
 // WithIAMAccountEmail sets the IAMAccountEmail field.
 func WithIAMAccountEmail(email string) Option {
 	return func(p *engineConfig) {
-		p.iAmAccountEmail = email
-	}
-}
-
-// withServiceAccountRetriever sets the ServiceAccountRetriever field.
-func withServiceAccountRetriever(emailRetriever func(context.Context) (string, error)) Option {
-	return func(p *engineConfig) {
-		p.emailRetreiver = emailRetriever
+		p.iamAccountEmail = email
 	}
 }
 

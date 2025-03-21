@@ -2,9 +2,6 @@ package alloydb
 
 import "fmt"
 
-// defaultDistanceStrategy is the default strategy used if none is provided
-var defaultDistanceStrategy = CosineDistance{}
-
 type distanceStrategy interface {
 	String() string
 	operator() string
@@ -106,6 +103,6 @@ func (s SCANNOptions) Options() string {
 }
 
 // indexOptions returns the specific options for the index based on the index type
-func (index *BaseIndex) indexOptions() (string, error) {
-	return index.options.Options(), nil
+func (index *BaseIndex) indexOptions() string {
+	return index.options.Options()
 }

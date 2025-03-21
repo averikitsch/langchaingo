@@ -1,7 +1,6 @@
 package alloydbutil
 
 import (
-	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,8 +34,8 @@ type VectorstoreTableOptions struct {
 	SchemaName         string
 	ContentColumnName  string
 	EmbeddingColumn    string
-	MetadataJsonColumn string
-	IdColumn           Column
+	MetadataJSONColumn string
+	IDColumn           Column
 	MetadataColumns    []Column
 	OverwriteExisting  bool
 	StoreMetadata      bool
@@ -92,13 +91,6 @@ func WithIAMAccountEmail(email string) Option {
 	return func(p *engineConfig) {
 		p.iamAccountEmail = email
 
-	}
-}
-
-// withServiceAccountRetriever sets the ServiceAccountRetriever field.
-func withServiceAccountRetriever(emailRetriever func(context.Context) (string, error)) Option {
-	return func(p *engineConfig) {
-		p.emailRetreiver = emailRetriever
 	}
 }
 

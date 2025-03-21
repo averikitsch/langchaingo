@@ -51,7 +51,7 @@ var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
 func NewVectorStore(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
-	opts ...AlloyDBVectoreStoresOption) (VectorStore, error) {
+	opts ...VectoreStoresOption) (VectorStore, error) {
 	vs, err := applyAlloyDBVectorStoreOptions(engine, embedder, tableName, opts...)
 	if err != nil {
 		return VectorStore{}, err
@@ -62,7 +62,7 @@ func NewVectorStore(engine alloydbutil.PostgresEngine, embedder embeddings.Embed
 // AddDocuments adds documents to the Postgres collection, and returns the ids
 // of the added documents.
 func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document, _ ...vectorstores.Option) ([]string, error) {
-	var texts []string
+	texts := make([]string, 0, len(docs))
 	for _, doc := range docs {
 		texts = append(texts, doc.PageContent)
 	}
@@ -205,7 +205,7 @@ func (vs *VectorStore) executeSQLQuery(ctx context.Context, stmt string) ([]Sear
 }
 
 func (*VectorStore) processResultsToDocuments(results []SearchDocument) ([]schema.Document, error) {
-	var documents []schema.Document
+	documents := make([]schema.Document, 0, len(results))
 	for _, result := range results {
 		mapMetadata := map[string]any{}
 		err := json.Unmarshal([]byte(result.LangchainMetadata), &mapMetadata)
@@ -238,10 +238,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if len(index.partialIndexes) > 0 {
 		filter = fmt.Sprintf("WHERE %s", index.partialIndexes)
 	}
-	optsString, err := index.indexOptions()
-	if err != nil {
-		return fmt.Errorf("indexOptions error: %w", err)
-	}
+	optsString := index.indexOptions()
 	params := fmt.Sprintf("WITH %s", optsString)
 
 	if name == "" {
@@ -259,7 +256,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
 		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
-	_, err = vs.engine.Pool.Exec(ctx, stmt)
+	_, err := vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute creation of index: %w", err)
 	}

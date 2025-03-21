@@ -110,12 +110,12 @@ func TestGetUser(t *testing.T) {
 
 	testServiceAccount := "test-service-account-email@test.com"
 	// Mock EmailRetriever function for testing
-	var mockEmailRetrevier = func(ctx context.Context) (string, error) {
+	var mockEmailRetrevier = func(_ context.Context) (string, error) {
 		return testServiceAccount, nil
 	}
 
 	// A failing mock function for testing
-	var mockFailingEmailRetrevier = func(ctx context.Context) (string, error) {
+	var mockFailingEmailRetrevier = func(_ context.Context) (string, error) {
 		return "", errors.New("missing or invalid credentials")
 	}
 

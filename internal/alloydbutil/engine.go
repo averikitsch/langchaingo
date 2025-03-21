@@ -91,13 +91,14 @@ func (p *PostgresEngine) Close() {
 // getUser retrieves the username, a flag indicating if IAM authentication
 // will be used and an error.
 func getUser(ctx context.Context, config engineConfig) (string, bool, error) {
-	if config.user != "" && config.password != "" {
+	switch {
+	case config.user != "" && config.password != "":
 		// If both username and password are provided use provided username.
 		return config.user, false, nil
-	} else if config.iamAccountEmail != "" {
+	case config.iamAccountEmail != "":
 		// If iamAccountEmail is provided use it as user.
 		return config.iamAccountEmail, true, nil
-	} else if config.user == "" && config.password == "" && config.iamAccountEmail == "" {
+	case config.user == "" && config.password == "" && config.iamAccountEmail == "":
 		// If neither user and password nor iamAccountEmail are provided,
 		// retrieve IAM email from the environment.
 		serviceAccountEmail, err := config.emailRetreiver(ctx)
@@ -160,16 +161,16 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 		opts.EmbeddingColumn = "embedding"
 	}
 
-	if opts.MetadataJsonColumn != "" {
-		opts.MetadataJsonColumn = "langchain_metadata"
+	if opts.MetadataJSONColumn != "" {
+		opts.MetadataJSONColumn = "langchain_metadata"
 	}
 
-	if opts.IdColumn.Name == "" {
-		opts.IdColumn.Name = "langchain_id"
+	if opts.IDColumn.Name == "" {
+		opts.IDColumn.Name = "langchain_id"
 	}
 
-	if opts.IdColumn.DataType == "" {
-		opts.IdColumn.DataType = "UUID"
+	if opts.IDColumn.DataType == "" {
+		opts.IDColumn.DataType = "UUID"
 	}
 
 	return nil
@@ -200,7 +201,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
 		"%s" %s PRIMARY KEY,
 		"%s" TEXT NOT NULL,
-		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
+		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IDColumn.Name, opts.IDColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
 
 	// Add metadata columns  to the query string if provided
 	for _, column := range opts.MetadataColumns {
@@ -213,7 +214,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 
 	// Add JSON metadata column to the query string if storeMetadata is true
 	if opts.StoreMetadata {
-		query += fmt.Sprintf(`, "%s" JSON`, opts.MetadataJsonColumn)
+		query += fmt.Sprintf(`, "%s" JSON`, opts.MetadataJSONColumn)
 	}
 	// Close the query string
 	query += ");"
