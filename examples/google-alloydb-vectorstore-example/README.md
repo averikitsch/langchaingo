@@ -7,10 +7,10 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 1. **Creates a AlloyDB VectorStore:**
    - Initializes the `alloydb.PostgresEngine` object to establish a connection to the AlloyDB database.
    - Initializes a new table to store embeddings.
-   - Initializes a `alloydb.VectorStore` object using a VertexAI model for embeddings.
+   - Initializes a `alloydb.VectorStore` object using a GoogleAI model for embeddings.
 
-2. **Initializes VertexAI Embeddings:**
-    - Creates an embeddings client using the VertexAI API.
+2. **Initializes GoogleAI Embeddings:**
+    - Creates an embeddings client using the GoogleAI API.
 
 3. **Adds Sample Documents:**
     - Inserts several documents (cities) with metadata into the vector store.
@@ -25,7 +25,8 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 1. Set the following environment variables. Your AlloyDB values can be found in the [Google Cloud Console](https://console.cloud.google.com/alloydb/clusters):
    ```
    export PROJECT_ID=<your project Id>
-   export VERTEX_LOCATION=<your vertex location>
+   export GOOGLE_API_KEY=<your google api key>
+   export GOOGLE_CLOUD_LOCATION=<your cloud location>
    export ALLOYDB_USERNAME=<your user>
    export ALLOYDB_PASSWORD=<your password>
    export ALLOYDB_REGION=<your region>
@@ -43,7 +44,7 @@ This example demonstrates how to use [AlloyDB for Postgres](https://cloud.google
 ## Key Features
 
 - This example demonstrates how to use `alloydb.PostgresEngine` for connection pooling.
-- It shows how to integrate with VertexAI embeddings models.
+- It shows how to integrate with GoogleAI embeddings models.
 - Run the code to add documents and perform a similarity search with `alloydb.VectorStore`.
 - Demonstrates how to filter through the metadata added by using key value pairs.
 
