@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/schema"
 )

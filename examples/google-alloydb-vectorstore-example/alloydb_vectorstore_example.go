@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/llms/googleai"
+	"github.com/tmc/langchaingo/llms/googleai/vertex"
 	"github.com/tmc/langchaingo/schema"
-	"github.com/tmc/langchaingo/vectorstores"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"log"
 	"os"
 )
 
-func getEnvVariables() (string, string, string, string, string, string, string, string, string, string) {
+func getEnvVariables() (string, string, string, string, string, string, string, string, string) {
 	// Requires environment variable ALLOYDB_USERNAME to be set.
 	username := os.Getenv("ALLOYDB_USERNAME")
 	if username == "" {
@@ -61,18 +61,12 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 		log.Fatal("env variable GOOGLE_CLOUD_LOCATION is empty")
 	}
 
-	// Requires environment variable GOOGLE_API_KEY to be set.
-	googleApikey := os.Getenv("GOOGLE_API_KEY")
-	if googleApikey == "" {
-		log.Fatal("env variable GOOGLE_API_KEY is empty")
-	}
-
-	return username, password, database, projectID, region, instance, cluster, table, location, googleApikey
+	return username, password, database, projectID, region, instance, cluster, table, location
 }
 
 func main() {
 	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, cluster, table, cloudLocation, googleApikey := getEnvVariables()
+	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
@@ -86,24 +80,19 @@ func main() {
 	}
 
 	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
-	vectorstoreTableoptions := &alloydbutil.VectorstoreTableOptions{
-		TableName:          "testtable",
-		VectorSize:         768,
-		MetadataJsonColumn: "langchain_metadata",
-		StoreMetadata:      true,
-		IdColumn: alloydbutil.Column{
-			Name:     "langchain_id",
-			DataType: "text",
-			Nullable: false,
-		},
+	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
+		TableName:     table,
+		VectorSize:    768,
+		StoreMetadata: true,
 	}
-	err = pgEngine.InitVectorstoreTable(ctx, *vectorstoreTableoptions)
+
+	err = pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Initialize GoogleAI LLM
-	llm, err := googleai.New(ctx, googleai.WithAPIKey(googleApikey), googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
+	// Initialize VertexAI LLM
+	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -114,8 +103,10 @@ func main() {
 	}
 
 	// Create a new AlloyDB Vectorstore
-	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table)
-
+	vs, err := alloydb.NewVectorStore(ctx, *pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
+	if err != nil {
+		log.Fatal(err)
+	}
 	_, err = vs.AddDocuments(ctx, []schema.Document{
 		{
 			PageContent: "Tokyo",

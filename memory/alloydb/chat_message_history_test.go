@@ -2,11 +2,11 @@ package alloydb_test
 
 import (
 	"context"
+	alloydbutil2 "github.com/tmc/langchaingo/util/alloydbutil"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/memory/alloydb"
 )
@@ -60,11 +60,11 @@ func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, e
 	t.Helper()
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 
-	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-		alloydbutil.WithUser(username),
-		alloydbutil.WithPassword(password),
-		alloydbutil.WithDatabase(database),
-		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+	pgEngine, err := alloydbutil2.NewPostgresEngine(ctx,
+		alloydbutil2.WithUser(username),
+		alloydbutil2.WithPassword(password),
+		alloydbutil2.WithDatabase(database),
+		alloydbutil2.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
 
 	return *pgEngine, err

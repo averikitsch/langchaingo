@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
 )
@@ -83,7 +82,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		}
 	}
 	// If no metadata provided, initialize with empty maps
-	metadatas := make([]map[string]any, len(texts))
+	metadatas := make([]map[string]any, len(docs))
 	for i := range docs {
 		if docs[i].Metadata == nil {
 			metadatas[i] = make(map[string]any)
@@ -98,7 +97,6 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		content := texts[i]
 		embedding := pgvector.NewVector(embeddings[i]).String()
 		metadata := metadatas[i]
-
 		// Construct metadata column names if present
 		metadataColNames := ""
 		if len(vs.metadataColumns) > 0 {
@@ -119,7 +117,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 			if val, ok := metadata[metadataColumn]; ok {
 				valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
 				values = append(values, val)
-				delete(metadata, metadataColumn)
+				// delete(metadata, metadataColumn)
 			} else {
 				valuesStmt += ", NULL"
 			}
@@ -136,6 +134,7 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		valuesStmt += ")"
 		query := insertStmt + valuesStmt
 		b.Queue(query, values...)
+
 	}
 
 	batchResults := vs.engine.Pool.SendBatch(ctx, b)
