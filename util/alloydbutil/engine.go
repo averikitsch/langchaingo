@@ -26,15 +26,15 @@ type Column struct {
 }
 
 // NewPostgresEngine creates a new PostgresEngine.
-func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
+func NewPostgresEngine(ctx context.Context, opts ...Option) (PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
 	if err != nil {
-		return nil, err
+		return PostgresEngine{}, err
 	}
 	user, usingIAMAuth, err := getUser(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error assigning user. Err: %w", err)
+		return PostgresEngine{}, fmt.Errorf("error assigning user. Err: %w", err)
 	}
 	if usingIAMAuth {
 		cfg.user = user
@@ -42,11 +42,11 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 	if cfg.connPool == nil {
 		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
-			return &PostgresEngine{}, err
+			return PostgresEngine{}, err
 		}
 	}
 	pgEngine.Pool = cfg.connPool
-	return pgEngine, nil
+	return *pgEngine, nil
 }
 
 // createPool creates a connection pool to the PostgreSQL database.
@@ -171,7 +171,7 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 	if opts.IdColumn.DataType == "" {
 		opts.IdColumn.DataType = "UUID"
 	}
-	
+
 	return nil
 }
 
