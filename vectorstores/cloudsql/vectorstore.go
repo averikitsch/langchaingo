@@ -155,7 +155,8 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	operator := vs.distanceStrategy.operator()
 	searchFunction := vs.distanceStrategy.similaritySearchFunction()
 
-	columns := append(vs.metadataColumns, vs.contentColumn)
+	columns := []string{}
+	columns = append(columns, vs.contentColumn)
 	if vs.metadataJSONColumn != "" {
 		columns = append(columns, vs.metadataJSONColumn)
 	}
