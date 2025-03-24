@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/llms/ollama"
 	"github.com/tmc/langchaingo/schema"
+	alloydbutil2 "github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"os"
 	"testing"
@@ -47,14 +47,14 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 	return username, password, database, projectID, region, instance, cluster
 }
 
-func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
+func setEngine(t *testing.T) (alloydbutil2.PostgresEngine, error) {
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 	ctx := context.Background()
-	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-		alloydbutil.WithUser(username),
-		alloydbutil.WithPassword(password),
-		alloydbutil.WithDatabase(database),
-		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+	pgEngine, err := alloydbutil2.NewPostgresEngine(ctx,
+		alloydbutil2.WithUser(username),
+		alloydbutil2.WithPassword(password),
+		alloydbutil2.WithDatabase(database),
+		alloydbutil2.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
 	if err != nil {
 		t.Fatal("Could not set Engine: ", err)

@@ -171,7 +171,7 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 	if opts.IdColumn.DataType == "" {
 		opts.IdColumn.DataType = "UUID"
 	}
-
+	
 	return nil
 }
 
