@@ -79,8 +79,11 @@ func WithDistanceStrategy(distanceStrategy distanceStrategy) VectoreStoresOption
 
 // applyAlloyDBVectorStoreOptions applies the given VectorStore options to the
 // VectorStore with an alloydb Engine.
-func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
-	opts ...VectoreStoresOption) (VectorStore, error) {
+func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine,
+	embedder embeddings.Embedder,
+	tableName string,
+	opts ...VectoreStoresOption,
+) (VectorStore, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return VectorStore{}, errors.New("missing vector store engine")
@@ -91,7 +94,7 @@ func applyAlloyDBVectorStoreOptions(engine alloydbutil.PostgresEngine, embedder 
 	if tableName == "" {
 		return VectorStore{}, errors.New("missing vector store table name")
 	}
-	var defaultDistanceStrategy = CosineDistance{}
+	defaultDistanceStrategy := CosineDistance{}
 
 	vs := &VectorStore{
 		engine:             engine,

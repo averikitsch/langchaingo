@@ -47,8 +47,11 @@ type SearchDocument struct {
 // TODO:: Remove comment after interface is satisfied var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
-func NewVectorStore(engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
-	opts ...VectoreStoresOption) (VectorStore, error) {
+func NewVectorStore(engine cloudsqlutil.PostgresEngine,
+	embedder embeddings.Embedder,
+	tableName string,
+	opts ...VectoreStoresOption,
+) (VectorStore, error) {
 	vs, err := applyCloudSQLVectorStoreOptions(engine, embedder, tableName, opts...)
 	if err != nil {
 		return VectorStore{}, err
@@ -219,7 +222,7 @@ func (*VectorStore) processResultsToDocuments(results []SearchDocument) ([]schem
 	return documents, nil
 }
 
-// ApplyVectorIndex creates an index in the table of the embeddings
+// ApplyVectorIndex creates an index in the table of the embeddings.
 func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently bool) error {
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name)

@@ -18,9 +18,11 @@ type Euclidean struct{}
 func (Euclidean) String() string {
 	return "euclidean"
 }
+
 func (Euclidean) operator() string {
 	return "<->"
 }
+
 func (Euclidean) searchFunction() string {
 	return "vector_l2_ops"
 }
@@ -34,9 +36,11 @@ type CosineDistance struct{}
 func (CosineDistance) String() string {
 	return "cosineDistance"
 }
+
 func (CosineDistance) operator() string {
 	return "<=>"
 }
+
 func (CosineDistance) searchFunction() string {
 	return "vector_cosine_ops"
 }
@@ -92,7 +96,7 @@ func (i IVFOptions) Options() string {
 	return fmt.Sprintf("(lists = %d, quantizer = %s)", i.Lists, i.Quantizer)
 }
 
-// indexOptions returns the specific options for the index based on the index type
+// indexOptions returns the specific options for the index based on the index type.
 func (index *BaseIndex) indexOptions() string {
 	return index.options.Options()
 }

@@ -23,8 +23,12 @@ type ChatMessageHistory struct {
 var _ schema.ChatMessageHistory = &ChatMessageHistory{}
 
 // NewChatMessageHistory creates a new NewChatMessageHistory with options.
-func NewChatMessageHistory(ctx context.Context, engine alloydbutil.PostgresEngine, tableName, sessionID string,
-	opts ...ChatMessageHistoryStoresOption) (ChatMessageHistory, error) {
+func NewChatMessageHistory(ctx context.Context,
+	engine alloydbutil.PostgresEngine,
+	tableName,
+	sessionID string,
+	opts ...ChatMessageHistoryStoresOption,
+) (ChatMessageHistory, error) {
 	var err error
 	// Ensure required fields are set
 	if engine.Pool == nil {
@@ -74,7 +78,7 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 		"type":       "text",
 	}
 
-	var columns = make(map[string]string)
+	columns := make(map[string]string)
 
 	// Get the columns from the table
 	columnsQuery := fmt.Sprintf(`

@@ -42,14 +42,14 @@ func TestNewPostgresEngine(t *testing.T) {
 	t.Parallel()
 	username, password, database, projectID, region, instance := getEnvVariables(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 	tcs := []struct {
 		desc string
 		in   []Option
 		err  string
 	}{
 		{
-			desc: "Sucessful Engine Creation",
+			desc: "Successful Engine Creation",
 			in: []Option{
 				WithUser(username),
 				WithPassword(password),
@@ -92,6 +92,7 @@ func TestNewPostgresEngine(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
 			_, err := NewPostgresEngine(ctx, tc.in...)
 			if err == nil && tc.err != "" {
 				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
@@ -107,15 +108,14 @@ func TestNewPostgresEngine(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	t.Parallel()
-
 	testServiceAccount := "test-service-account-email@test.com"
-	// Mock EmailRetriever function for testing
-	var mockEmailRetrevier = func(_ context.Context) (string, error) {
+	// Mock EmailRetriever function for testing.
+	mockEmailRetrevier := func(_ context.Context) (string, error) {
 		return testServiceAccount, nil
 	}
 
-	// A failing mock function for testing
-	var mockFailingEmailRetrevier = func(_ context.Context) (string, error) {
+	// A failing mock function for testing.
+	mockFailingEmailRetrevier := func(_ context.Context) (string, error) {
 		return "", errors.New("missing or invalid credentials")
 	}
 

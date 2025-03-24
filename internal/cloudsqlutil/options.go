@@ -92,15 +92,15 @@ func applyClientOptions(opts ...Option) (engineConfig, error) {
 	return *cfg, nil
 }
 
-// Option function type
+// Option function type.
 type OptionInitChatHistoryTable func(*InitChatHistoryTableOptions)
 
-// Option type for defining options
+// Option type for defining options.
 type InitChatHistoryTableOptions struct {
 	schemaName string
 }
 
-// WithSchemaName sets a custom schema name
+// WithSchemaName sets a custom schema name.
 func WithSchemaName(schemaName string) OptionInitChatHistoryTable {
 	return func(i *InitChatHistoryTableOptions) {
 		i.schemaName = schemaName

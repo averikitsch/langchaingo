@@ -49,6 +49,7 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 }
 
 func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
+	t.Helper()
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 	ctx := context.Background()
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
@@ -65,6 +66,7 @@ func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
 }
 
 func setVectoreStore(t *testing.T) (alloydb.VectorStore, error) {
+	t.Helper()
 	pgEngine, err := setEngine(t)
 	if err != nil {
 		return alloydb.VectorStore{}, err
@@ -87,8 +89,8 @@ func setVectoreStore(t *testing.T) (alloydb.VectorStore, error) {
 }
 
 func TestPingToDB(t *testing.T) {
+	t.Parallel()
 	engine, err := setEngine(t)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +102,7 @@ func TestPingToDB(t *testing.T) {
 }
 
 func TestApplyVectorIndexAndDropIndex(t *testing.T) {
+	t.Parallel()
 	vs, err := setVectoreStore(t)
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +120,7 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 }
 
 func TestIsValidIndex(t *testing.T) {
+	t.Parallel()
 	vs, err := setVectoreStore(t)
 	if err != nil {
 		t.Fatal(err)
@@ -139,6 +143,7 @@ func TestIsValidIndex(t *testing.T) {
 }
 
 func TestAddDocuments(t *testing.T) {
+	t.Parallel()
 	vs, err := setVectoreStore(t)
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +201,6 @@ func TestAddDocuments(t *testing.T) {
 			},
 		},
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}

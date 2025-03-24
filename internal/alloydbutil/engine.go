@@ -180,20 +180,20 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts VectorstoreTableOptions) error {
 	err := validateVectorstoreTableOptions(&opts)
 	if err != nil {
-		return fmt.Errorf("failed to validate vectorstore table options: %v", err)
+		return fmt.Errorf("failed to validate vectorstore table options: %w", err)
 	}
 
 	// Ensure the vector extension exists
 	_, err = p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
-		return fmt.Errorf("failed to create extension: %v", err)
+		return fmt.Errorf("failed to create extension: %w", err)
 	}
 
 	// Drop table if exists and overwrite flag is true
 	if opts.OverwriteExisting {
 		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, opts.SchemaName, opts.TableName))
 		if err != nil {
-			return fmt.Errorf("failed to drop table: %v", err)
+			return fmt.Errorf("failed to drop table: %w", err)
 		}
 	}
 
@@ -222,7 +222,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 	// Execute the query to create the table
 	_, err = p.Pool.Exec(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to create table: %v", err)
+		return fmt.Errorf("failed to create table: %w", err)
 	}
 
 	return nil
@@ -242,7 +242,7 @@ func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName str
 	// Execute the query
 	_, err := p.Pool.Exec(ctx, createTableQuery)
 	if err != nil {
-		return fmt.Errorf("failed to execute query: %v", err)
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 	return nil
 }

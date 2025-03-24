@@ -19,7 +19,7 @@ type PostgresEngine struct {
 	Pool *pgxpool.Pool
 }
 
-// NewPostgresEngine creates a new PostgresEngine
+// NewPostgresEngine creates a new PostgresEngine.
 func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
@@ -76,7 +76,7 @@ func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxp
 	return pool, nil
 }
 
-// Close closes the pool connection
+// Close closes the pool connection.
 func (p *PostgresEngine) Close() {
 	if p.Pool != nil {
 		p.Pool.Close()
@@ -148,7 +148,7 @@ func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName str
 	// Execute the query
 	_, err := p.Pool.Exec(ctx, createTableQuery)
 	if err != nil {
-		return fmt.Errorf("failed to execute query: %v", err)
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 	return nil
 }

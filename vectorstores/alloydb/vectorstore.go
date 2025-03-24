@@ -50,8 +50,11 @@ type SearchDocument struct {
 var _ vectorstores.VectorStore = &VectorStore{}
 
 // NewVectorStore creates a new VectorStore with options.
-func NewVectorStore(engine alloydbutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
-	opts ...VectoreStoresOption) (VectorStore, error) {
+func NewVectorStore(engine alloydbutil.PostgresEngine,
+	embedder embeddings.Embedder,
+	tableName string,
+	opts ...VectoreStoresOption,
+) (VectorStore, error) {
 	vs, err := applyAlloyDBVectorStoreOptions(engine, embedder, tableName, opts...)
 	if err != nil {
 		return VectorStore{}, err
@@ -222,7 +225,7 @@ func (*VectorStore) processResultsToDocuments(results []SearchDocument) ([]schem
 	return documents, nil
 }
 
-// ApplyVectorIndex creates an index in the table of the embeddings
+// ApplyVectorIndex creates an index in the table of the embeddings.
 func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool) error {
 	if index.indexType == "exactnearestneighbor" {
 		return vs.DropVectorIndex(ctx, name, overwrite)

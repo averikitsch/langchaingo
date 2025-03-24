@@ -79,8 +79,11 @@ func WithDistanceStrategy(distanceStrategy distanceStrategy) VectoreStoresOption
 
 // VectoreStoresOption applies the given VectorStore options to the
 // VectorStore with a cloudsql Engine.
-func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine, embedder embeddings.Embedder, tableName string,
-	opts ...VectoreStoresOption) (VectorStore, error) {
+func applyCloudSQLVectorStoreOptions(engine cloudsqlutil.PostgresEngine,
+	embedder embeddings.Embedder,
+	tableName string,
+	opts ...VectoreStoresOption,
+) (VectorStore, error) {
 	// Check for required values.
 	if engine.Pool == nil {
 		return VectorStore{}, errors.New("missing vector store engine")
