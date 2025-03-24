@@ -64,7 +64,7 @@ func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
 		t.Fatal("Could not set Engine: ", err)
 	}
 
-	return *pgEngine, nil
+	return pgEngine, nil
 }
 
 func setVectoreStore(t *testing.T) (alloydb.VectorStore, func() error, error) {
