@@ -8,6 +8,7 @@ import (
 	"github.com/tmc/langchaingo/llms/googleai/vertex"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/util/alloydbutil"
+	"github.com/tmc/langchaingo/vectorstores"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"log"
 	"os"
@@ -69,12 +70,15 @@ func main() {
 	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
 		alloydbutil.WithUser(username),
 		alloydbutil.WithPassword(password),
 		alloydbutil.WithDatabase(database),
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+		alloydbutil.WithIPType("PUBLIC"),
 	)
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -84,13 +88,23 @@ func main() {
 		TableName:     table,
 		VectorSize:    768,
 		StoreMetadata: true,
+		MetadataColumns: []alloydbutil.Column{
+			alloydbutil.Column{
+				Name:     "area",
+				DataType: "int",
+			},
+			alloydbutil.Column{
+				Name:     "population",
+				DataType: "int",
+			},
+		},
 	}
 
 	err = pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	
 	// Initialize VertexAI LLM
 	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
 	if err != nil {
@@ -103,10 +117,11 @@ func main() {
 	}
 
 	// Create a new AlloyDB Vectorstore
-	vs, err := alloydb.NewVectorStore(ctx, *pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
+	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	_, err = vs.AddDocuments(ctx, []schema.Document{
 		{
 			PageContent: "Tokyo",
@@ -169,4 +184,10 @@ func main() {
 	}
 
 	fmt.Println("Docs:", docs)
+	filter := map[string]any{"area": "1523"}
+	filteredDocs, err := vs.SimilaritySearch(ctx, "Japan", 0, vectorstores.WithFilters(filter))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("FilteredDocs:", filteredDocs)
 }
