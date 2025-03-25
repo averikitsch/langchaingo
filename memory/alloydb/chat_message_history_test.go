@@ -2,11 +2,11 @@ package alloydb_test
 
 import (
 	"context"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/memory/alloydb"
 )

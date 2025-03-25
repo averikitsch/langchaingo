@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/internal/alloydbutil"
+	"github.com/tmc/langchaingo/llms/googleai"
 	"github.com/tmc/langchaingo/llms/googleai/vertex"
 	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 	"log"
@@ -55,10 +56,10 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 		log.Fatal("env variable ALLOYDB_TABLE is empty")
 	}
 
-	// Requires environment variable VERTEX_LOCATION to be set.
-	location := os.Getenv("VERTEX_LOCATION")
+	// Requires environment variable GOOGLE_CLOUD_LOCATION to be set.
+	location := os.Getenv("GOOGLE_CLOUD_LOCATION")
 	if location == "" {
-		log.Fatal("env variable VERTEX_LOCATION is empty")
+		log.Fatal("env variable GOOGLE_CLOUD_LOCATION is empty")
 	}
 
 	return username, password, database, projectID, region, instance, cluster, table, location
@@ -66,49 +67,47 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 
 func main() {
 	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, cluster, table, vertexLocation := getEnvVariables()
+	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
 		alloydbutil.WithUser(username),
 		alloydbutil.WithPassword(password),
 		alloydbutil.WithDatabase(database),
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+		alloydbutil.WithIPType("PUBLIC"),
 	)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
-	vectorstoreTableoptions, err := &alloydbutil.VectorstoreTableOptions{
-		TableName:  "table",
-		VectorSize: 768,
-	}
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = pgEngine.InitVectorstoreTable(ctx, *vectorstoreTableoptions,
-		[]alloydbutil.Column{
+	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
+		TableName:         table,
+		VectorSize:        768,
+		StoreMetadata:     true,
+		OverwriteExisting: true,
+		MetadataColumns: []alloydbutil.Column{
 			alloydbutil.Column{
 				Name:     "area",
 				DataType: "int",
-				Nullable: false,
 			},
 			alloydbutil.Column{
 				Name:     "population",
 				DataType: "int",
-				Nullable: false,
 			},
 		},
-	)
+	}
+
+	err = pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Initialize VertexAI LLM
-	llm, err := vertex.New(ctx, vertex.WithCloudProject(projectID), vertex.WithCloudLocation(vertexLocation), vertex.WithDefaultModel("text-embedding-005"))
+	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,6 +119,9 @@ func main() {
 
 	// Create a new AlloyDB Vectorstore
 	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{
 		{
@@ -177,19 +179,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	docs, err := vs.SimilaritySearch(ctx, "Japan")
+	docs, err := vs.SimilaritySearch(ctx, "Japan", 0)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println("Docs:", docs)
-
-	// Search for similar documents using score threshold and metadata filter.
-	filter := map[string]any{"area": "1523"} // Sao Paulo
-	filteredDocs, err := vs.SimilaritySearch(ctx, "Brazil", vectorstores.WithFilters(filter))
+	filter := "\"area\" > 1500"
+	filteredDocs, err := vs.SimilaritySearch(ctx, "Japan", 0, vectorstores.WithFilters(filter))
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println("Filtered Docs:", filteredDocs)
+	fmt.Println("FilteredDocs:", filteredDocs)
 }
