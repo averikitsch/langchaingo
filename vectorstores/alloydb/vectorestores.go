@@ -162,20 +162,10 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 		columns = append(columns, vs.metadataJsonColumn)
 	}
 	columnNames := strings.Join(columns, `, `)
-	whereQuerys := make([]string, 0)
+	whereClause := ""
 	if opts.Filters != nil {
-		filters, ok := opts.Filters.(map[string]any)
-		if ok {
-			for k, v := range filters {
-				whereQuerys = append(whereQuerys, fmt.Sprintf("(%s ->> '%s') = '%s'", vs.metadataJsonColumn, k, v))
-			}
-		}
+		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
-	whereQuery := strings.Join(whereQuerys, " AND ")
-	if len(whereQuery) == 0 {
-		whereQuery = "TRUE"
-	}
-	whereClause := fmt.Sprintf("WHERE %s", whereQuery)
 	stmt := fmt.Sprintf(`
         SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
 		columnNames, searchFunction, vs.embeddingColumn, vectorToString(embedding), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vectorToString(embedding))
