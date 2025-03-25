@@ -185,7 +185,7 @@ func main() {
 	}
 
 	fmt.Println("Docs:", docs)
-	filter := "(langchain_metadata ->> 'area') = '1523'"
+	filter := "\"area\" > 1500"
 	filteredDocs, err := vs.SimilaritySearch(ctx, "Japan", 0, vectorstores.WithFilters(filter))
 	if err != nil {
 		log.Fatal(err)
