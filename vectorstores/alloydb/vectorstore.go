@@ -11,6 +11,7 @@ import (
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores"
 )
 
@@ -166,12 +167,6 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	if opts.Filters != nil {
 		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
-	vector := pgvector.NewVector(embedding)
-	whereQuery := strings.Join(whereQuerys, " AND ")
-	if len(whereQuery) == 0 {
-		whereQuery = "TRUE"
-	}
-	whereClause := fmt.Sprintf("WHERE %s", whereQuery)
 	stmt := fmt.Sprintf(`
         SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
 		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vector.String())
