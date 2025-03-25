@@ -26,15 +26,15 @@ type Column struct {
 }
 
 // NewPostgresEngine creates a new PostgresEngine.
-func NewPostgresEngine(ctx context.Context, opts ...Option) (PostgresEngine, error) {
+func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
 	if err != nil {
-		return PostgresEngine{}, err
+		return nil, err
 	}
 	user, usingIAMAuth, err := getUser(ctx, cfg)
 	if err != nil {
-		return PostgresEngine{}, fmt.Errorf("error assigning user. Err: %w", err)
+		return nil, fmt.Errorf("error assigning user. Err: %w", err)
 	}
 	if usingIAMAuth {
 		cfg.user = user
@@ -42,11 +42,11 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (PostgresEngine, err
 	if cfg.connPool == nil {
 		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
-			return PostgresEngine{}, err
+			return &PostgresEngine{}, err
 		}
 	}
 	pgEngine.Pool = cfg.connPool
-	return *pgEngine, nil
+	return pgEngine, nil
 }
 
 // createPool creates a connection pool to the PostgreSQL database.
@@ -148,19 +148,19 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 		return fmt.Errorf("missing vector size in options")
 	}
 
-	if opts.SchemaName == "" {
+	if opts.SchemaName != "" {
 		opts.SchemaName = "public"
 	}
 
-	if opts.ContentColumnName == "" {
+	if opts.ContentColumnName != "" {
 		opts.ContentColumnName = "content"
 	}
 
-	if opts.EmbeddingColumn == "" {
+	if opts.EmbeddingColumn != "" {
 		opts.EmbeddingColumn = "embedding"
 	}
 
-	if opts.MetadataJsonColumn == "" {
+	if opts.MetadataJsonColumn != "" {
 		opts.MetadataJsonColumn = "langchain_metadata"
 	}
 
@@ -197,7 +197,10 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 	}
 
 	// Build the SQL query that creates the table
-	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" ("%s" %s PRIMARY KEY, "%s" TEXT NOT NULL, "%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
+	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
+		"%s" %s PRIMARY KEY,
+		"%s" TEXT NOT NULL,
+		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
 
 	// Add metadata columns  to the query string if provided
 	for _, column := range opts.MetadataColumns {
