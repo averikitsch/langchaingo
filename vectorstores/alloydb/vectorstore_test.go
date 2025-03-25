@@ -65,7 +65,7 @@ func setEngine(t *testing.T) alloydbutil.PostgresEngine {
 	return *pgEngine
 }
 
-func vectoreStore(t *testing.T) alloydb.VectorStore {
+func vectorStore(t *testing.T) alloydb.VectorStore {
 	t.Helper()
 	pgEngine := setEngine(t)
 	llmm, err := ollama.New(
@@ -98,7 +98,7 @@ func TestPingToDB(t *testing.T) {
 
 func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 	t.Parallel()
-	vs := vectoreStore(t)
+	vs := vectorStore(t)
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
 	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
@@ -113,7 +113,7 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 
 func TestIsValidIndex(t *testing.T) {
 	t.Parallel()
-	vs := vectoreStore(t)
+	vs := vectorStore(t)
 
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
@@ -134,7 +134,7 @@ func TestIsValidIndex(t *testing.T) {
 
 func TestAddDocuments(t *testing.T) {
 	t.Parallel()
-	vs := vectoreStore(t)
+	vs := vectorStore(t)
 	ctx := context.Background()
 
 	_, err := vs.AddDocuments(ctx, []schema.Document{

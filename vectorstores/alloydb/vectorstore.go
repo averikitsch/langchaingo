@@ -171,8 +171,7 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	vector := pgvector.NewVector(embedding)
 	stmt := fmt.Sprintf(`
         SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
-		columnNames, searchFunction, vs.embeddingColumn, vectorToString(embedding), vs.schemaName, vs.tableName, whereClause,
-		vs.embeddingColumn, operator, vectorToString(embedding))
+		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vector.String())
 
 	results, err := vs.executeSQLQuery(ctx, stmt)
 	if err != nil {
