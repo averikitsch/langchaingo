@@ -85,9 +85,10 @@ func main() {
 
 	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
 	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
-		TableName:     table,
-		VectorSize:    768,
-		StoreMetadata: true,
+		TableName:         table,
+		VectorSize:        768,
+		StoreMetadata:     true,
+		OverwriteExisting: true,
 		MetadataColumns: []alloydbutil.Column{
 			alloydbutil.Column{
 				Name:     "area",
@@ -104,7 +105,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	// Initialize VertexAI LLM
 	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
 	if err != nil {
