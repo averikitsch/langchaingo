@@ -2,9 +2,9 @@ package alloydb
 
 import (
 	"errors"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/internal/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores"
 )
 

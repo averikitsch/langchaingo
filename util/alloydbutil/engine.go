@@ -26,11 +26,11 @@ type Column struct {
 }
 
 // NewPostgresEngine creates a new PostgresEngine.
-func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
+func NewPostgresEngine(ctx context.Context, opts ...Option) (PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
 	if err != nil {
-		return nil, err
+		return PostgresEngine{}, err
 	}
 	if cfg.connPool == nil {
 		user, usingIAMAuth, err := getUser(ctx, cfg)
@@ -42,11 +42,11 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 		}
 		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
-			return &PostgresEngine{}, err
+			return PostgresEngine{}, err
 		}
 	}
 	pgEngine.Pool = cfg.connPool
-	return pgEngine, nil
+	return *pgEngine, nil
 }
 
 // createPool creates a connection pool to the PostgreSQL database.
@@ -149,15 +149,15 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 		return fmt.Errorf("missing vector size in options")
 	}
 
-	if opts.SchemaName != "" {
+	if opts.SchemaName == "" {
 		opts.SchemaName = "public"
 	}
 
-	if opts.ContentColumnName != "" {
+	if opts.ContentColumnName == "" {
 		opts.ContentColumnName = "content"
 	}
 
-	if opts.EmbeddingColumn != "" {
+	if opts.EmbeddingColumn == "" {
 		opts.EmbeddingColumn = "embedding"
 	}
 
