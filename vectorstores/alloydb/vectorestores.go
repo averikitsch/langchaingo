@@ -114,7 +114,6 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 			if val, ok := metadata[metadataColumn]; ok {
 				valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
 				values = append(values, val)
-				// delete(metadata, metadataColumn)
 			} else {
 				valuesStmt += ", NULL"
 			}
