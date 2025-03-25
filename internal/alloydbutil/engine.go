@@ -32,14 +32,14 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 	if err != nil {
 		return nil, err
 	}
-	user, usingIAMAuth, err := getUser(ctx, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("error assigning user. Err: %w", err)
-	}
-	if usingIAMAuth {
-		cfg.user = user
-	}
 	if cfg.connPool == nil {
+		user, usingIAMAuth, err := getUser(ctx, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("error assigning user. Err: %w", err)
+		}
+		if usingIAMAuth {
+			cfg.user = user
+		}
 		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
 			return &PostgresEngine{}, err
@@ -91,13 +91,14 @@ func (p *PostgresEngine) Close() {
 // getUser retrieves the username, a flag indicating if IAM authentication
 // will be used and an error.
 func getUser(ctx context.Context, config engineConfig) (string, bool, error) {
-	if config.user != "" && config.password != "" {
+	switch {
+	case config.user != "" && config.password != "":
 		// If both username and password are provided use provided username.
 		return config.user, false, nil
-	} else if config.iamAccountEmail != "" {
+	case config.iamAccountEmail != "":
 		// If iamAccountEmail is provided use it as user.
 		return config.iamAccountEmail, true, nil
-	} else if config.user == "" && config.password == "" && config.iamAccountEmail == "" {
+	case config.user == "" && config.password == "" && config.iamAccountEmail == "":
 		// If neither user and password nor iamAccountEmail are provided,
 		// retrieve IAM email from the environment.
 		serviceAccountEmail, err := config.emailRetreiver(ctx)
@@ -160,16 +161,16 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 		opts.EmbeddingColumn = "embedding"
 	}
 
-	if opts.MetadataJsonColumn != "" {
-		opts.MetadataJsonColumn = "langchain_metadata"
+	if opts.MetadataJSONColumn == "" {
+		opts.MetadataJSONColumn = "langchain_metadata"
 	}
 
-	if opts.IdColumn.Name == "" {
-		opts.IdColumn.Name = "langchain_id"
+	if opts.IDColumn.Name == "" {
+		opts.IDColumn.Name = "langchain_id"
 	}
 
-	if opts.IdColumn.DataType == "" {
-		opts.IdColumn.DataType = "UUID"
+	if opts.IDColumn.DataType == "" {
+		opts.IDColumn.DataType = "UUID"
 	}
 
 	return nil
@@ -179,20 +180,20 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts VectorstoreTableOptions) error {
 	err := validateVectorstoreTableOptions(&opts)
 	if err != nil {
-		return fmt.Errorf("failed to validate vectorstore table options: %v", err)
+		return fmt.Errorf("failed to validate vectorstore table options: %w", err)
 	}
 
 	// Ensure the vector extension exists
 	_, err = p.Pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
-		return fmt.Errorf("failed to create extension: %v", err)
+		return fmt.Errorf("failed to create extension: %w", err)
 	}
 
 	// Drop table if exists and overwrite flag is true
 	if opts.OverwriteExisting {
 		_, err = p.Pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s"."%s"`, opts.SchemaName, opts.TableName))
 		if err != nil {
-			return fmt.Errorf("failed to drop table: %v", err)
+			return fmt.Errorf("failed to drop table: %w", err)
 		}
 	}
 
@@ -200,7 +201,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 	query := fmt.Sprintf(`CREATE TABLE "%s"."%s" (
 		"%s" %s PRIMARY KEY,
 		"%s" TEXT NOT NULL,
-		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IdColumn.Name, opts.IdColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
+		"%s" vector(%d) NOT NULL`, opts.SchemaName, opts.TableName, opts.IDColumn.Name, opts.IDColumn.DataType, opts.ContentColumnName, opts.EmbeddingColumn, opts.VectorSize)
 
 	// Add metadata columns  to the query string if provided
 	for _, column := range opts.MetadataColumns {
@@ -213,7 +214,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 
 	// Add JSON metadata column to the query string if storeMetadata is true
 	if opts.StoreMetadata {
-		query += fmt.Sprintf(`, "%s" JSON`, opts.MetadataJsonColumn)
+		query += fmt.Sprintf(`, "%s" JSON`, opts.MetadataJSONColumn)
 	}
 	// Close the query string
 	query += ");"
@@ -221,7 +222,7 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 	// Execute the query to create the table
 	_, err = p.Pool.Exec(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to create table: %v", err)
+		return fmt.Errorf("failed to create table: %w", err)
 	}
 
 	return nil
@@ -241,7 +242,7 @@ func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName str
 	// Execute the query
 	_, err := p.Pool.Exec(ctx, createTableQuery)
 	if err != nil {
-		return fmt.Errorf("failed to execute query: %v", err)
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 	return nil
 }

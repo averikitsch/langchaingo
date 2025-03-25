@@ -13,11 +13,11 @@ import (
 
 type chatMsg struct{}
 
-func (c chatMsg) GetType() llms.ChatMessageType {
+func (chatMsg) GetType() llms.ChatMessageType {
 	return llms.ChatMessageTypeHuman
 }
 
-func (c chatMsg) GetContent() string {
+func (chatMsg) GetContent() string {
 	return "test content"
 }
 
@@ -56,7 +56,8 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 	return username, password, database, projectID, region, instance, cluster
 }
 
-func setEngine(t *testing.T, ctx context.Context) (alloydbutil.PostgresEngine, error) {
+func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, error) {
+	t.Helper()
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
@@ -72,8 +73,8 @@ func setEngine(t *testing.T, ctx context.Context) (alloydbutil.PostgresEngine, e
 func TestValidateTable(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	engine, err := setEngine(t, ctx)
+	t.Cleanup(cancel)
+	engine, err := setEngine(ctx, t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestValidateTable(t *testing.T) {
 		err       string
 	}{
 		{
-			desc:      "Succesful creation of Chat Message History",
+			desc:      "Successful creation of Chat Message History",
 			tableName: "items",
 			sessionID: "session",
 			err:       "",
@@ -106,6 +107,7 @@ func TestValidateTable(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
 			chatMsgHistory, err := alloydb.NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			if tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) {
 				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
@@ -115,7 +117,7 @@ func TestValidateTable(t *testing.T) {
 					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
 				}
 			}
-			// if the chat message history was created succesfully, continue with the other methods tests
+			// if the chat message history was created successfully, continue with the other methods tests
 			if err == nil {
 				err = chatMsgHistory.AddMessage(ctx, chatMsg{})
 				if err != nil {
