@@ -154,10 +154,10 @@ func main() {
     }
 
     // Initialize VertexAI LLM
-    llm, err := vertex.New(ctx, googleai.WithAPIKey(googleApikey), googleai.WithCloudProject(projectID), googleai.WithCloudLocation(vertexLocation), googleai.WithDefaultModel("text-embedding-005"))
+    llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
     if err != nil {
         log.Fatal(err)
-	}
+    }
 
     myEmbedder, err := embeddings.NewEmbedder(llm)
     if err != nil {

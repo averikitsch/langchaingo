@@ -161,7 +161,7 @@ func validateVectorstoreTableOptions(opts *VectorstoreTableOptions) error {
 		opts.EmbeddingColumn = "embedding"
 	}
 
-	if opts.MetadataJSONColumn != "" {
+	if opts.MetadataJSONColumn == "" {
 		opts.MetadataJSONColumn = "langchain_metadata"
 	}
 

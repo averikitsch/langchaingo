@@ -48,7 +48,7 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 	return username, password, database, projectID, region, instance, cluster
 }
 
-func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
+func setEngine(t *testing.T) alloydbutil.PostgresEngine {
 	t.Helper()
 	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
 	ctx := context.Background()
@@ -59,23 +59,20 @@ func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
 	if err != nil {
-		return alloydbutil.PostgresEngine{}, err
+		t.Fatal("Could not set Engine: ", err)
 	}
 
-	return *pgEngine, nil
+	return *pgEngine
 }
 
-func setVectoreStore(t *testing.T) (alloydb.VectorStore, error) {
+func vectoreStore(t *testing.T) alloydb.VectorStore {
 	t.Helper()
-	pgEngine, err := setEngine(t)
-	if err != nil {
-		return alloydb.VectorStore{}, err
-	}
+	pgEngine := setEngine(t)
 	llmm, err := ollama.New(
 		ollama.WithModel("llama3"),
 	)
 	if err != nil {
-		return alloydb.VectorStore{}, err
+		t.Fatal(err)
 	}
 	e, err := embeddings.NewEmbedder(llmm)
 	if err != nil {
@@ -83,33 +80,28 @@ func setVectoreStore(t *testing.T) (alloydb.VectorStore, error) {
 	}
 	vs, err := alloydb.NewVectorStore(pgEngine, e, "items")
 	if err != nil {
-		return alloydb.VectorStore{}, err
+		t.Fatal(err)
 	}
-	return vs, nil
+	return vs
 }
 
 func TestPingToDB(t *testing.T) {
 	t.Parallel()
-	engine, err := setEngine(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	engine := setEngine(t)
+
 	defer engine.Close()
 
-	if err = engine.Pool.Ping(context.Background()); err != nil {
+	if err := engine.Pool.Ping(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 	t.Parallel()
-	vs, err := setVectoreStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	vs := vectoreStore(t)
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
-	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
+	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,13 +113,11 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 
 func TestIsValidIndex(t *testing.T) {
 	t.Parallel()
-	vs, err := setVectoreStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	vs := vectoreStore(t)
+
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
-	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
+	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,13 +134,10 @@ func TestIsValidIndex(t *testing.T) {
 
 func TestAddDocuments(t *testing.T) {
 	t.Parallel()
-	vs, err := setVectoreStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	vs := vectoreStore(t)
 	ctx := context.Background()
 
-	_, err = vs.AddDocuments(ctx, []schema.Document{
+	_, err := vs.AddDocuments(ctx, []schema.Document{
 		{
 			PageContent: "Tokyo",
 			Metadata: map[string]any{

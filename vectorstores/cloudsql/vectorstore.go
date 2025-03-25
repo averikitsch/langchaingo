@@ -50,7 +50,7 @@ type SearchDocument struct {
 func NewVectorStore(engine cloudsqlutil.PostgresEngine,
 	embedder embeddings.Embedder,
 	tableName string,
-	opts ...VectoreStoresOption,
+	opts ...VectorStoreOption,
 ) (VectorStore, error) {
 	vs, err := applyCloudSQLVectorStoreOptions(engine, embedder, tableName, opts...)
 	if err != nil {

@@ -53,7 +53,7 @@ var _ vectorstores.VectorStore = &VectorStore{}
 func NewVectorStore(engine alloydbutil.PostgresEngine,
 	embedder embeddings.Embedder,
 	tableName string,
-	opts ...VectoreStoresOption,
+	opts ...VectorStoreOption,
 ) (VectorStore, error) {
 	vs, err := applyAlloyDBVectorStoreOptions(engine, embedder, tableName, opts...)
 	if err != nil {
