@@ -162,14 +162,9 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 		columns = append(columns, vs.metadataJSONColumn)
 	}
 	columnNames := strings.Join(columns, `, `)
-	whereQuerys := make([]string, 0)
+	whereClause := ""
 	if opts.Filters != nil {
-		filters, ok := opts.Filters.(map[string]any)
-		if ok {
-			for k, v := range filters {
-				whereQuerys = append(whereQuerys, fmt.Sprintf("(%s ->> '%s') = '%s'", vs.metadataJsonColumn, k, v))
-			}
-		}
+		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
 	vector := pgvector.NewVector(embedding)
 	whereQuery := strings.Join(whereQuerys, " AND ")
