@@ -1,7 +1,6 @@
-package alloydbutil
+package cloudsqlutil
 
 import (
-	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -9,7 +8,7 @@ import (
 
 const (
 	defaultSchemaName = "public"
-	defaultUserAgent  = "langchaingo-alloydb-pg/0.0.0"
+	defaultUserAgent  = "langchaingo-cloud-sql-pg/0.0.0"
 )
 
 // Option is a function type that can be used to modify the Engine.
@@ -18,7 +17,6 @@ type Option func(p *engineConfig)
 type engineConfig struct {
 	projectID       string
 	region          string
-	cluster         string
 	instance        string
 	connPool        *pgxpool.Pool
 	database        string
@@ -30,26 +28,11 @@ type engineConfig struct {
 	userAgents      []string
 }
 
-// VectorstoreTableOptions is used with the InitVectorstoreTable to use the required and default fields.
-type VectorstoreTableOptions struct {
-	TableName          string
-	VectorSize         int
-	SchemaName         string
-	ContentColumnName  string
-	EmbeddingColumn    string
-	MetadataJsonColumn string
-	IdColumn           Column
-	MetadataColumns    []Column
-	OverwriteExisting  bool
-	StoreMetadata      bool
-}
-
-// WithAlloyDBInstance sets the project, region, cluster, and instance fields.
-func WithAlloyDBInstance(projectID, region, cluster, instance string) Option {
+// WithCloudSQLInstance sets the project, region, and instance fields.
+func WithCloudSQLInstance(projectID, region, instance string) Option {
 	return func(p *engineConfig) {
 		p.projectID = projectID
 		p.region = region
-		p.cluster = cluster
 		p.instance = instance
 	}
 }
@@ -89,18 +72,10 @@ func WithIPType(ipType string) Option {
 	}
 }
 
-// WithIAMAccountEmail sets the WithIAMAccountEmail field.
+// WithIAMAccountEmail sets the IAMAccountEmail field.
 func WithIAMAccountEmail(email string) Option {
 	return func(p *engineConfig) {
 		p.iamAccountEmail = email
-
-	}
-}
-
-// withServiceAccountRetriever sets the ServiceAccountRetriever field.
-func withServiceAccountRetriever(emailRetriever func(context.Context) (string, error)) Option {
-	return func(p *engineConfig) {
-		p.emailRetreiver = emailRetriever
 	}
 }
 
@@ -120,22 +95,22 @@ func applyClientOptions(opts ...Option) (engineConfig, error) {
 	for _, opt := range opts {
 		opt(cfg)
 	}
-	if cfg.connPool == nil && cfg.projectID == "" && cfg.region == "" && cfg.cluster == "" && cfg.instance == "" {
+	if cfg.connPool == nil && cfg.projectID == "" && cfg.region == "" && cfg.instance == "" {
 		return engineConfig{}, errors.New("missing connection: provide a connection pool or connection fields")
 	}
 
 	return *cfg, nil
 }
 
-// Option function type
+// Option function type.
 type OptionInitChatHistoryTable func(*InitChatHistoryTableOptions)
 
-// Option type for defining options
+// Option type for defining options.
 type InitChatHistoryTableOptions struct {
 	schemaName string
 }
 
-// WithSchemaName sets a custom schema name
+// WithSchemaName sets a custom schema name.
 func WithSchemaName(schemaName string) OptionInitChatHistoryTable {
 	return func(i *InitChatHistoryTableOptions) {
 		i.schemaName = schemaName

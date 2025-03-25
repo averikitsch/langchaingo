@@ -2,9 +2,6 @@ package alloydb
 
 import "fmt"
 
-// defaultDistanceStrategy is the default strategy used if none is provided
-var defaultDistanceStrategy = CosineDistance{}
-
 type distanceStrategy interface {
 	String() string
 	operator() string
@@ -18,51 +15,55 @@ type Index interface {
 
 type Euclidean struct{}
 
-func (e Euclidean) String() string {
+func (Euclidean) String() string {
 	return "euclidean"
 }
-func (e Euclidean) operator() string {
+
+func (Euclidean) operator() string {
 	return "<->"
 }
-func (e Euclidean) searchFunction() string {
+
+func (Euclidean) searchFunction() string {
 	return "vector_l2_ops"
 }
 
-func (e Euclidean) similaritySearchFunction() string {
+func (Euclidean) similaritySearchFunction() string {
 	return "l2_distance"
 }
 
 type CosineDistance struct{}
 
-func (c CosineDistance) String() string {
+func (CosineDistance) String() string {
 	return "cosineDistance"
 }
-func (c CosineDistance) operator() string {
+
+func (CosineDistance) operator() string {
 	return "<=>"
 }
-func (c CosineDistance) searchFunction() string {
+
+func (CosineDistance) searchFunction() string {
 	return "vector_cosine_ops"
 }
 
-func (c CosineDistance) similaritySearchFunction() string {
+func (CosineDistance) similaritySearchFunction() string {
 	return "cosine_distance"
 }
 
 type InnerProduct struct{}
 
-func (i InnerProduct) String() string {
+func (InnerProduct) String() string {
 	return "innerProduct"
 }
 
-func (i InnerProduct) operator() string {
+func (InnerProduct) operator() string {
 	return "<#>"
 }
 
-func (i InnerProduct) searchFunction() string {
+func (InnerProduct) searchFunction() string {
 	return "vector_ip_ops"
 }
 
-func (i InnerProduct) similaritySearchFunction() string {
+func (InnerProduct) similaritySearchFunction() string {
 	return "inner_product"
 }
 
@@ -78,7 +79,7 @@ func (h HNSWOptions) Options() string {
 
 // IVFFlatOptions holds the configuration for the ivfflat index.
 type IVFFlatOptions struct {
-	    Lists int
+	Lists int
 }
 
 func (i IVFFlatOptions) Options() string {
@@ -105,7 +106,7 @@ func (s SCANNOptions) Options() string {
 	return fmt.Sprintf("(num_leaves = %d, quantizer = %s)", s.NumLeaves, s.Quantizer)
 }
 
-// indexOptions returns the specific options for the index based on the index type
-func (index *BaseIndex) indexOptions() (string, error) {
-	return index.options.Options(), nil
+// indexOptions returns the specific options for the index based on the index type.
+func (index *BaseIndex) indexOptions() string {
+	return index.options.Options()
 }
