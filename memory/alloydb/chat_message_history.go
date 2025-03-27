@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/tmc/langchaingo/util/alloydbutil"
-	"time"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 )
 
 type ChatMessageHistory struct {
@@ -180,7 +178,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 // ChatMessageHistory.
 func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
 	query := fmt.Sprintf(
-		`SELECT id, session_id, data, type, timestamp FROM %q.%q WHERE session_id = $1 ORDER BY id`,
+		`SELECT id, session_id, data, type FROM %q.%q WHERE session_id = $1 ORDER BY id`,
 		c.schemaName, c.tableName,
 	)
 
@@ -194,8 +192,8 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, 
 	for rows.Next() {
 		var id int
 		var sessionID, data, messageType string
-		var timestamp time.Time
-		if err := rows.Scan(&id, &sessionID, &data, &messageType, &timestamp); err != nil {
+
+		if err := rows.Scan(&id, &sessionID, &data, &messageType); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
