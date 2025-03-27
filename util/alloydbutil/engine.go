@@ -35,7 +35,7 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (PostgresEngine, err
 	if cfg.connPool == nil {
 		user, usingIAMAuth, err := getUser(ctx, cfg)
 		if err != nil {
-			return nil, fmt.Errorf("error assigning user. Err: %w", err)
+			return PostgresEngine{}, fmt.Errorf("error assigning user. Err: %w", err)
 		}
 		if usingIAMAuth {
 			cfg.user = user

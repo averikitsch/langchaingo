@@ -13,76 +13,108 @@ import (
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 )
 
-func getEnvVariables(t *testing.T) (string, string, string, string, string, string, string, string) {
+type EnvVariables struct {
+	Username  string
+	Password  string
+	Database  string
+	ProjectID string
+	Region    string
+	Instance  string
+	Cluster   string
+	Table     string
+}
+
+var envVariables EnvVariables
+
+func getEnvVariables(t *testing.T) EnvVariables {
 	t.Helper()
 
 	username := os.Getenv("ALLOYDB_USERNAME")
 	if username == "" {
-		t.Skip("ALLOYDB_USERNAME environment variable not set")
+		t.Skip("env variable ALLOYDB_USERNAME is empty")
 	}
+	// Requires environment variable ALLOYDB_PASSWORD to be set.
 	password := os.Getenv("ALLOYDB_PASSWORD")
 	if password == "" {
-		t.Skip("ALLOYDB_PASSWORD environment variable not set")
+		t.Skip("env variable ALLOYDB_PASSWORD is empty")
 	}
+	// Requires environment variable ALLOYDB_DATABASE to be set.
 	database := os.Getenv("ALLOYDB_DATABASE")
 	if database == "" {
-		t.Skip("ALLOYDB_DATABASE environment variable not set")
+		t.Skip("env variable ALLOYDB_DATABASE is empty")
 	}
-	table := os.Getenv("ALLOYDB_TABLE")
-	if table == "" {
-		t.Skip("ALLOYDB_TABLE environment variable not set")
-	}
-	projectID := os.Getenv("ALLOYDB_PROJECT_ID")
+	// Requires environment variable PROJECT_ID to be set.
+	projectID := os.Getenv("PROJECT_ID")
 	if projectID == "" {
-		t.Skip("ALLOYDB_PROJECT_ID environment variable not set")
+		t.Skip("env variable PROJECT_ID is empty")
 	}
+	// Requires environment variable ALLOYDB_REGION to be set.
 	region := os.Getenv("ALLOYDB_REGION")
 	if region == "" {
-		t.Skip("ALLOYDB_REGION environment variable not set")
+		t.Skip("env variable ALLOYDB_REGION is empty")
 	}
+	// Requires environment variable ALLOYDB_INSTANCE to be set.
 	instance := os.Getenv("ALLOYDB_INSTANCE")
 	if instance == "" {
-		t.Skip("ALLOYDB_INSTANCE environment variable not set")
+		t.Skip("env variable ALLOYDB_INSTANCE is empty")
 	}
+	// Requires environment variable ALLOYDB_CLUSTER to be set.
 	cluster := os.Getenv("ALLOYDB_CLUSTER")
 	if cluster == "" {
-		t.Skip("ALLOYDB_CLUSTER environment variable not set")
+		t.Skip("env variable ALLOYDB_CLUSTER is empty")
+	}
+	// Requires environment variable ALLOYDB_TABLE to be set.
+	table := os.Getenv("ALLOYDB_TABLE")
+	if table == "" {
+		t.Skip("env variable ALLOYDB_TABLE is empty")
 	}
 
-	return username, password, database, projectID, region, instance, cluster, table
+	// Requires environment variable GOOGLE_CLOUD_LOCATION to be set.
+	location := os.Getenv("GOOGLE_CLOUD_LOCATION")
+	if location == "" {
+		t.Skip("env variable GOOGLE_CLOUD_LOCATION is empty")
+	}
+
+	envVariables := EnvVariables{
+		Username:  username,
+		Password:  password,
+		Database:  database,
+		ProjectID: projectID,
+		Region:    region,
+		Instance:  instance,
+		Cluster:   cluster,
+		Table:     table,
+	}
+
+	return envVariables
 }
 
-func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
+func setEngine(t *testing.T, envVariables EnvVariables) alloydbutil.PostgresEngine {
 	t.Helper()
-	username, password, database, projectID, region, instance, cluster, _ := getEnvVariables(t)
 	ctx := context.Background()
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-		alloydbutil.WithUser(username),
-		alloydbutil.WithPassword(password),
-		alloydbutil.WithDatabase(database),
-		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+		alloydbutil.WithUser(envVariables.Username),
+		alloydbutil.WithPassword(envVariables.Password),
+		alloydbutil.WithDatabase(envVariables.Database),
+		alloydbutil.WithAlloyDBInstance(envVariables.ProjectID, envVariables.Region, envVariables.Cluster, envVariables.Instance),
 	)
 	if err != nil {
 		t.Fatal("Could not set Engine: ", err)
 	}
 
-	return pgEngine, nil
+	return pgEngine
 }
 
-func setVectorStore(t *testing.T) (alloydb.VectorStore, func() error, error) {
+func vectorStore(t *testing.T, envVariables EnvVariables) (alloydb.VectorStore, func() error, error) {
 	t.Helper()
-	_, _, _, _, _, _, _, table := getEnvVariables(t)
-	pgEngine, err := setEngine(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	pgEngine := setEngine(t, envVariables)
 	ctx := context.Background()
 	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
-		TableName:     table,
+		TableName:     envVariables.Table,
 		VectorSize:    768,
 		StoreMetadata: true,
 	}
-	err = pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
+	err := pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,13 +128,13 @@ func setVectorStore(t *testing.T) (alloydb.VectorStore, func() error, error) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table)
+	vs, err := alloydb.NewVectorStore(pgEngine, e, envVariables.Table)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	cleanUpTableFn := func() error {
-		_, err := pgEngine.Pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS `%s`", table))
+		_, err := pgEngine.Pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS `%s`", envVariables.Table))
 		return err
 	}
 	return vs, cleanUpTableFn, nil
@@ -110,7 +142,8 @@ func setVectorStore(t *testing.T) (alloydb.VectorStore, func() error, error) {
 
 func TestPingToDB(t *testing.T) {
 	t.Parallel()
-	engine := setEngine(t)
+	envVariables = getEnvVariables(t)
+	engine := setEngine(t, envVariables)
 
 	defer engine.Close()
 
@@ -121,13 +154,14 @@ func TestPingToDB(t *testing.T) {
 
 func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 	t.Parallel()
-	vs, cleanUpTableFn, err := setVectorStore(t)
+	envVariables := getEnvVariables(t)
+	vs, cleanUpTableFn, err := vectorStore(t, envVariables)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
-	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
+	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,13 +177,14 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 
 func TestIsValidIndex(t *testing.T) {
 	t.Parallel()
-	vs, cleanUpTableFn, err := setVectorStore(t)
+	envVariables = getEnvVariables(t)
+	vs, cleanUpTableFn, err := vectorStore(t, envVariables)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
-	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
+	err = vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,13 +205,19 @@ func TestIsValidIndex(t *testing.T) {
 
 func TestAddDocuments(t *testing.T) {
 	t.Parallel()
-	vs, cleanUpTableFn, err := setVectorStore(t)
+	ctx := context.Background()
+	envVariables := getEnvVariables(t)
+	vs, cleanUpTableFn, err := vectorStore(t, envVariables)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	t.Cleanup(func() {
+		if err := cleanUpTableFn(); err != nil {
+			t.Fatal("Cleanup failed:", err)
+		}
+	})
 
-	_, err := vs.AddDocuments(ctx, []schema.Document{
+	_, err = vs.AddDocuments(ctx, []schema.Document{
 		{
 			PageContent: "Tokyo",
 			Metadata: map[string]any{
