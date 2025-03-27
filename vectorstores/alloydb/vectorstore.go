@@ -134,7 +134,6 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		valuesStmt += ")"
 		query := insertStmt + valuesStmt
 		b.Queue(query, values...)
-
 	}
 
 	batchResults := vs.engine.Pool.SendBatch(ctx, b)
@@ -255,7 +254,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 		concurrentlyStr = "CONCURRENTLY"
 	}
 
-	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
+	stmt := fmt.Sprintf(`CREATE INDEX %s %s ON "%s"."%s" USING %s (%s %s) %s %s`,
 		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
 	_, err := vs.engine.Pool.Exec(ctx, stmt)
