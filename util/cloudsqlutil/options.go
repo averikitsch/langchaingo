@@ -79,13 +79,6 @@ func WithIAMAccountEmail(email string) Option {
 	}
 }
 
-// WithUserAgent returns an Option that sets the User-Agent.
-func WithUserAgent(ua string) Option {
-	return func(p *engineConfig) {
-		p.userAgents = ua
-	}
-}
-
 func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
