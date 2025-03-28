@@ -134,7 +134,6 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		valuesStmt += ")"
 		query := insertStmt + valuesStmt
 		b.Queue(query, values...)
-
 	}
 
 	batchResults := vs.engine.Pool.SendBatch(ctx, b)
@@ -167,6 +166,7 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	if opts.Filters != nil {
 		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
+	vector := pgvector.NewVector(embedding)
 	stmt := fmt.Sprintf(`
         SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
 		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vector.String())
@@ -254,7 +254,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 		concurrentlyStr = "CONCURRENTLY"
 	}
 
-	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
+	stmt := fmt.Sprintf(`CREATE INDEX %s %s ON "%s"."%s" USING %s (%s %s) %s %s`,
 		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
 	_, err := vs.engine.Pool.Exec(ctx, stmt)

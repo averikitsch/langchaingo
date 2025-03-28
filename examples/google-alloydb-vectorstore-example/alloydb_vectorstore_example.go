@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/googleai"
 	"github.com/tmc/langchaingo/llms/googleai/vertex"
@@ -10,8 +13,6 @@ import (
 	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
-	"log"
-	"os"
 )
 
 func getEnvVariables() (string, string, string, string, string, string, string, string, string) {
@@ -90,11 +91,11 @@ func main() {
 		StoreMetadata:     true,
 		OverwriteExisting: true,
 		MetadataColumns: []alloydbutil.Column{
-			alloydbutil.Column{
+			{
 				Name:     "area",
 				DataType: "int",
 			},
-			alloydbutil.Column{
+			{
 				Name:     "population",
 				DataType: "int",
 			},
@@ -118,7 +119,7 @@ func main() {
 	}
 
 	// Create a new AlloyDB Vectorstore
-	vs, err := alloydb.NewVectorStore(ctx, pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
+	vs, err := alloydb.NewVectorStore(pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
 	if err != nil {
 		log.Fatal(err)
 	}

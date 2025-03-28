@@ -8,6 +8,7 @@ import (
 
 const (
 	defaultSchemaName = "public"
+	defaultUserAgent  = "langchaingo-cloud-sql-pg/0.0.0"
 )
 
 // Option is a function type that can be used to modify the Engine.
@@ -24,6 +25,7 @@ type engineConfig struct {
 	ipType          string
 	iamAccountEmail string
 	emailRetreiver  EmailRetriever
+	userAgents      string
 }
 
 // WithCloudSQLInstance sets the project, region, and instance fields.
@@ -81,6 +83,7 @@ func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
 		ipType:         "PUBLIC",
+		userAgents:     defaultUserAgent,
 	}
 	for _, opt := range opts {
 		opt(cfg)
