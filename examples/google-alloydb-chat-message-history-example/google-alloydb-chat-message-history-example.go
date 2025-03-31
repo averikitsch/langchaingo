@@ -104,12 +104,12 @@ func main() {
 	aiMessage := llms.AIChatMessage{Content: "test AI message"}
 	humanMessage := llms.HumanChatMessage{Content: "test HUMAN message"}
 	// Adds a user message to the chat message history.
-	err = cmh.AddUserMessage(ctx, string(aiMessage.GetContent()))
+	err = cmh.AddUserMessage(ctx, aiMessage.GetContent())
 	if err != nil {
 		log.Fatal(err)
 	}
 	// Adds a user message to the chat message history.
-	err = cmh.AddUserMessage(ctx, string(humanMessage.GetContent()))
+	err = cmh.AddUserMessage(ctx, humanMessage.GetContent())
 	if err != nil {
 		log.Fatal(err)
 	}
