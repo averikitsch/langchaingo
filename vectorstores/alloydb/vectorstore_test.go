@@ -3,11 +3,12 @@ package alloydb_test
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/llms/ollama"
+	"github.com/tmc/langchaingo/llms/googleai"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
@@ -67,12 +68,6 @@ func getEnvVariables(t *testing.T) EnvVariables {
 		t.Skip("env variable ALLOYDB_TABLE is empty")
 	}
 
-	// Requires environment variable GOOGLE_CLOUD_LOCATION to be set.
-	location := os.Getenv("GOOGLE_CLOUD_LOCATION")
-	if location == "" {
-		t.Skip("env variable GOOGLE_CLOUD_LOCATION is empty")
-	}
-
 	envVariables := EnvVariables{
 		Username:  username,
 		Password:  password,
@@ -117,13 +112,15 @@ func vectorStore(t *testing.T, envVariables EnvVariables) (alloydb.VectorStore, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	llmm, err := ollama.New(
-		ollama.WithModel("llama3"),
-	)
+	// Initialize VertexAI LLM
+	llm, err := googleai.New(ctx, googleai.WithCloudProject(envVariables.ProjectID), googleai.WithCloudLocation(envVariables.Region), googleai.WithDefaultModel("text-embedding-005"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, err := embeddings.NewEmbedder(llmm)
+	e, err := embeddings.NewEmbedder(llm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +130,7 @@ func vectorStore(t *testing.T, envVariables EnvVariables) (alloydb.VectorStore, 
 	}
 
 	cleanUpTableFn := func() error {
-		_, err := pgEngine.Pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS `%s`", envVariables.Table))
+		_, err := pgEngine.Pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", envVariables.Table))
 		return err
 	}
 	return vs, cleanUpTableFn
