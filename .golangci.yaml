@@ -62,7 +62,5 @@ linters-settings:
       - 'import "[^"]+/(util|common|helpers)"'
   gosec:
     excludes:
-    - G115 # https://github.com/securego/gosec/issues/1212
-run:
-  exclude-dirs:
-    - 'exp'
+      - G115 # https://github.com/securego/gosec/issues/1212
+
