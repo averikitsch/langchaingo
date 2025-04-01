@@ -44,10 +44,6 @@ linters-settings:
     max-complexity: 12
   funlen:
     lines: 90
-  depguard:
-    list-type: denylist
-    packages:
-      - github.com/samber/lo # Use exp packages or internal utilities instead.
   forbidigo:
     forbid:
       - 'import "[^"]+/(util|common|helpers)"'
