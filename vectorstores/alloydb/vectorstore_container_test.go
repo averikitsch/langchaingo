@@ -57,7 +57,7 @@ func preCheckEnvSetting(t *testing.T) string {
 	return pgvectorURL
 }
 
-func setEngineWithImage(t *testing.T) (alloydbutil.PostgresEngine, error) {
+func setEngineWithImage(t *testing.T) alloydbutil.PostgresEngine {
 	pgvectorURL := preCheckEnvSetting(t)
 	ctx := context.Background()
 	myPool, err := pgxpool.New(ctx, pgvectorURL)
@@ -72,12 +72,12 @@ func setEngineWithImage(t *testing.T) (alloydbutil.PostgresEngine, error) {
 		t.Fatal("Could not set Engine: ", err)
 	}
 
-	return pgEngine, nil
+	return pgEngine
 }
 
 func initVectorStore(t *testing.T) (alloydb.VectorStore, func() error) {
 	t.Helper()
-	pgEngine, _ := setEngineWithImage(t)
+	pgEngine := setEngineWithImage(t)
 	ctx := context.Background()
 	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
 		TableName:         "my_test_table",
@@ -117,7 +117,7 @@ func initVectorStore(t *testing.T) (alloydb.VectorStore, func() error) {
 
 func TestContainerPingToDB(t *testing.T) {
 	t.Parallel()
-	engine, _ := setEngineWithImage(t)
+	engine := setEngineWithImage(t)
 
 	defer engine.Close()
 
