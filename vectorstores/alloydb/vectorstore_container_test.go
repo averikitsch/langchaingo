@@ -14,12 +14,11 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
 )
-
 
 func preCheckEnvSetting(t *testing.T) string {
 	t.Helper()
@@ -58,7 +57,7 @@ func preCheckEnvSetting(t *testing.T) string {
 	return pgvectorURL
 }
 
-func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
+func setEngineWithImage(t *testing.T) (alloydbutil.PostgresEngine, error) {
 	pgvectorURL := preCheckEnvSetting(t)
 	ctx := context.Background()
 	myPool, err := pgxpool.New(ctx, pgvectorURL)
@@ -76,9 +75,9 @@ func setEngine(t *testing.T) (alloydbutil.PostgresEngine, error) {
 	return pgEngine, nil
 }
 
-func vectorStore(t *testing.T) (alloydb.VectorStore, func() error) {
+func initVectorStore(t *testing.T) (alloydb.VectorStore, func() error) {
 	t.Helper()
-	pgEngine, _ := setEngine(t)
+	pgEngine, _ := setEngineWithImage(t)
 	ctx := context.Background()
 	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
 		TableName:         "my_test_table",
@@ -116,9 +115,9 @@ func vectorStore(t *testing.T) (alloydb.VectorStore, func() error) {
 	return vs, cleanUpTableFn
 }
 
-func TestPingToDB(t *testing.T) {
+func TestContainerPingToDB(t *testing.T) {
 	t.Parallel()
-	engine, _ := setEngine(t)
+	engine, _ := setEngineWithImage(t)
 
 	defer engine.Close()
 
@@ -127,9 +126,9 @@ func TestPingToDB(t *testing.T) {
 	}
 }
 
-func TestApplyVectorIndexAndDropIndex(t *testing.T) {
+func TestContainerApplyVectorIndexAndDropIndex(t *testing.T) {
 	t.Parallel()
-	vs, cleanUpTableFn := vectorStore(t)
+	vs, cleanUpTableFn := initVectorStore(t)
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
 	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
@@ -146,9 +145,9 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 	}
 }
 
-func TestIsValidIndex(t *testing.T) {
+func TestContainerIsValidIndex(t *testing.T) {
 	t.Parallel()
-	vs, cleanUpTableFn := vectorStore(t)
+	vs, cleanUpTableFn := initVectorStore(t)
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
 	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
@@ -170,10 +169,10 @@ func TestIsValidIndex(t *testing.T) {
 	}
 }
 
-func TestAddDocuments(t *testing.T) {
+func TestContainerAddDocuments(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	vs, cleanUpTableFn := vectorStore(t)
+	vs, cleanUpTableFn := initVectorStore(t)
 	t.Cleanup(func() {
 		if err := cleanUpTableFn(); err != nil {
 			t.Fatal("Cleanup failed:", err)
