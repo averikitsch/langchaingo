@@ -58,6 +58,7 @@ func preCheckEnvSetting(t *testing.T) string {
 }
 
 func setEngineWithImage(t *testing.T) alloydbutil.PostgresEngine {
+	t.Helper()
 	pgvectorURL := preCheckEnvSetting(t)
 	ctx := context.Background()
 	myPool, err := pgxpool.New(ctx, pgvectorURL)
