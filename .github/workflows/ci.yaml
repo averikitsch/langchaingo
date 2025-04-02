@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     branches:
-      - main
+      - google-main
 jobs:
   lint:
     name: Lint
@@ -46,4 +46,3 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GENAI_API_KEY: ${{ secrets.GENAI_API_KEY }}
         run: go test -v ./...
-
