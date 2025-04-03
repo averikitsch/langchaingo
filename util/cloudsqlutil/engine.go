@@ -20,7 +20,7 @@ type PostgresEngine struct {
 }
 
 // NewPostgresEngine creates a new PostgresEngine.
-func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
+func NewPostgresEngine(ctx context.Context, opts ...Option) (PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
 	if err != nil {
@@ -36,7 +36,7 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 		}
 		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
-			return &PostgresEngine{}, err
+			return PostgresEngine{}, err
 		}
 	}
 	pgEngine.Pool = cfg.connPool
