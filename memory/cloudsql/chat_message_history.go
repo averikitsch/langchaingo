@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/tmc/langchaingo/llms"
@@ -58,7 +57,7 @@ func NewChatMessageHistory(ctx context.Context,
 // contains the required columns.
 func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	tableExistsQuery := `SELECT EXISTS (
-		SELECT FROM information_schema.tables 
+		SELECT FROM information_schema.tables
 		WHERE table_schema = $1 AND table_name = $2);`
 
 	var exists bool
@@ -74,7 +73,7 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	requiredColumns := map[string]string{
 		"id":         "integer",
 		"session_id": "text",
-		"data":       "json",
+		"data":       "jsonb",
 		"type":       "text",
 	}
 
@@ -179,7 +178,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 // ChatMessageHistory.
 func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
 	query := fmt.Sprintf(
-		`SELECT id, session_id, data, type, timestamp FROM %q.%q WHERE session_id = $1 ORDER BY id`,
+		`SELECT id, session_id, data, type FROM %q.%q WHERE session_id = $1 ORDER BY id`,
 		c.schemaName, c.tableName,
 	)
 
@@ -193,8 +192,8 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, 
 	for rows.Next() {
 		var id int
 		var sessionID, data, messageType string
-		var timestamp time.Time
-		if err := rows.Scan(&id, &sessionID, &data, &messageType, &timestamp); err != nil {
+
+		if err := rows.Scan(&id, &sessionID, &data, &messageType); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 

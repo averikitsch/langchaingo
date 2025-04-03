@@ -86,16 +86,6 @@ func (i IVFFlatOptions) Options() string {
 	return fmt.Sprintf("(lists = %d)", i.Lists)
 }
 
-// IVFOptions holds the configuration for the ivf index.
-type IVFOptions struct {
-	Lists     int
-	Quantizer string
-}
-
-func (i IVFOptions) Options() string {
-	return fmt.Sprintf("(lists = %d, quantizer = %s)", i.Lists, i.Quantizer)
-}
-
 // indexOptions returns the specific options for the index based on the index type.
 func (index *BaseIndex) indexOptions() string {
 	return index.options.Options()

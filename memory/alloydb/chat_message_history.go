@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/tmc/langchaingo/llms"
@@ -57,12 +56,12 @@ func NewChatMessageHistory(ctx context.Context,
 // validateTable validates if a table with a specific schema exist and it
 // contains the required columns.
 func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
-	tableExistsQuery := fmt.Sprintf(`SELECT EXISTS (
-		SELECT FROM information_schema.tables 
-		WHERE table_schema = '%s' AND table_name = '%s');`,
-		c.schemaName, c.tableName)
+	tableExistsQuery := `SELECT EXISTS (
+		SELECT FROM information_schema.tables
+		WHERE table_schema = $1 AND table_name = $2);`
+
 	var exists bool
-	err := c.engine.Pool.QueryRow(ctx, tableExistsQuery).Scan(&exists)
+	err := c.engine.Pool.QueryRow(ctx, tableExistsQuery, c.schemaName, c.tableName).Scan(&exists)
 	if err != nil {
 		return fmt.Errorf("error validating the existence of table '%s' in schema '%s': %w", c.tableName, c.schemaName, err)
 	}
@@ -74,19 +73,19 @@ func (c *ChatMessageHistory) validateTable(ctx context.Context) error {
 	requiredColumns := map[string]string{
 		"id":         "integer",
 		"session_id": "text",
-		"data":       "json",
+		"data":       "jsonb",
 		"type":       "text",
 	}
 
 	columns := make(map[string]string)
 
 	// Get the columns from the table
-	columnsQuery := fmt.Sprintf(`
-    	SELECT column_name, data_type
-    	FROM information_schema.columns
-   	 	WHERE table_schema = '%s' AND table_name = '%s';`, c.schemaName, c.tableName)
+	columnsQuery := `
+    	 	SELECT column_name, data_type
+    	 	FROM information_schema.columns
+   	 		WHERE table_schema = $1 AND table_name = $2;`
 
-	rows, err := c.engine.Pool.Query(ctx, columnsQuery)
+	rows, err := c.engine.Pool.Query(ctx, columnsQuery, c.schemaName, c.tableName)
 	if err != nil {
 		return fmt.Errorf("error fetching columns from table '%s' in schema '%s': %w", c.tableName, c.schemaName, err)
 	}
@@ -180,7 +179,7 @@ func (c *ChatMessageHistory) AddMessages(ctx context.Context, messages []llms.Ch
 // ChatMessageHistory.
 func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, error) {
 	query := fmt.Sprintf(
-		`SELECT id, session_id, data, type, timestamp FROM %q.%q WHERE session_id = $1 ORDER BY id`,
+		`SELECT id, session_id, data, type FROM %q.%q WHERE session_id = $1 ORDER BY id`,
 		c.schemaName, c.tableName,
 	)
 
@@ -194,8 +193,8 @@ func (c *ChatMessageHistory) Messages(ctx context.Context) ([]llms.ChatMessage, 
 	for rows.Next() {
 		var id int
 		var sessionID, data, messageType string
-		var timestamp time.Time
-		if err := rows.Scan(&id, &sessionID, &data, &messageType, &timestamp); err != nil {
+
+		if err := rows.Scan(&id, &sessionID, &data, &messageType); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 

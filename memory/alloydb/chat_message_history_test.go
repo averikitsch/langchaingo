@@ -96,13 +96,13 @@ func TestValidateTable(t *testing.T) {
 			desc:      "Creation of Chat Message History with missing table",
 			tableName: "",
 			sessionID: "session",
-			err:       "",
+			err:       "table name must be provided",
 		},
 		{
 			desc:      "Creation of Chat Message History with missing session ID",
 			tableName: "items",
 			sessionID: "",
-			err:       "",
+			err:       "session ID must be provided",
 		},
 	}
 
