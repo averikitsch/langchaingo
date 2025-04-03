@@ -67,14 +67,14 @@ func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, e
 		alloydbutil.WithDatabase(database),
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
-	pgEngine.InitChatHistoryTable(ctx, "items")
+
 	return pgEngine, err
 }
 
 func TestValidateTable(t *testing.T) {
 	t.Parallel()
-	// ctx, cancel := context.WithCancel(context.Background())
-	// t.Cleanup(cancel)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	ctx := context.Background()
 	engine, err := setEngine(ctx, t)
 	if err != nil {
