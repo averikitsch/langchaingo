@@ -8,6 +8,7 @@ import (
 
 const (
 	defaultSchemaName = "public"
+	defaultUserAgent  = "langchaingo-alloydb-pg/0.0.0"
 )
 
 // Option is a function type that can be used to modify the Engine.
@@ -25,6 +26,7 @@ type engineConfig struct {
 	ipType          string
 	iamAccountEmail string
 	emailRetreiver  EmailRetriever
+	userAgents      string
 }
 
 // VectorstoreTableOptions is used with the InitVectorstoreTable to use the required and default fields.
@@ -97,6 +99,7 @@ func applyClientOptions(opts ...Option) (engineConfig, error) {
 	cfg := &engineConfig{
 		emailRetreiver: getServiceAccountEmail,
 		ipType:         "PUBLIC",
+		userAgents:     defaultUserAgent,
 	}
 	for _, opt := range opts {
 		opt(cfg)

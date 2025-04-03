@@ -2,10 +2,11 @@ package alloydb_test
 
 import (
 	"context"
-	"github.com/tmc/langchaingo/util/alloydbutil"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/tmc/langchaingo/util/alloydbutil"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/memory/alloydb"
@@ -67,7 +68,7 @@ func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, e
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
 
-	return *pgEngine, err
+	return pgEngine, err
 }
 
 func TestValidateTable(t *testing.T) {

@@ -98,43 +98,11 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 		content := texts[i]
 		embedding := pgvector.NewVector(embeddings[i]).String()
 		metadata := metadatas[i]
-		// Construct metadata column names if present
-		metadataColNames := ""
-		if len(vs.metadataColumns) > 0 {
-			metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
+		query, values, err := vs.generateAddDocumentsQuery(id, content, embedding, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate query: %w", err)
 		}
-
-		if vs.metadataJSONColumn != "" {
-			metadataColNames += ", " + vs.metadataJSONColumn
-		}
-
-		insertStmt := fmt.Sprintf(`INSERT INTO %q.%q (%s, %s, %s%s)`,
-			vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
-		valuesStmt := "VALUES ($1, $2, $3"
-		values := []any{id, content, embedding}
-
-		// Add metadata
-		for _, metadataColumn := range vs.metadataColumns {
-			if val, ok := metadata[metadataColumn]; ok {
-				valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
-				values = append(values, val)
-			} else {
-				valuesStmt += ", NULL"
-			}
-		}
-		// Add JSON column and/or close statement
-		if vs.metadataJSONColumn != "" {
-			valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
-			metadataJSON, err := json.Marshal(metadata)
-			if err != nil {
-				return nil, fmt.Errorf("failed to transform metadata to json: %w", err)
-			}
-			values = append(values, metadataJSON)
-		}
-		valuesStmt += ")"
-		query := insertStmt + valuesStmt
 		b.Queue(query, values...)
-
 	}
 
 	batchResults := vs.engine.Pool.SendBatch(ctx, b)
@@ -143,6 +111,45 @@ func (vs *VectorStore) AddDocuments(ctx context.Context, docs []schema.Document,
 	}
 
 	return ids, nil
+}
+
+func (vs *VectorStore) generateAddDocumentsQuery(id, content, embedding string, metadata map[string]any) (string, []any, error) {
+	// Construct metadata column names if present
+	metadataColNames := ""
+	if len(vs.metadataColumns) > 0 {
+		metadataColNames = ", " + strings.Join(vs.metadataColumns, ", ")
+	}
+
+	if vs.metadataJSONColumn != "" {
+		metadataColNames += ", " + vs.metadataJSONColumn
+	}
+
+	insertStmt := fmt.Sprintf(`INSERT INTO %q.%q (%s, %s, %s%s)`,
+		vs.schemaName, vs.tableName, vs.idColumn, vs.contentColumn, vs.embeddingColumn, metadataColNames)
+	valuesStmt := "VALUES ($1, $2, $3"
+	values := []any{id, content, embedding}
+
+	// Add metadata
+	for _, metadataColumn := range vs.metadataColumns {
+		if val, ok := metadata[metadataColumn]; ok {
+			valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
+			values = append(values, val)
+		} else {
+			valuesStmt += ", NULL"
+		}
+	}
+	// Add JSON column and/or close statement
+	if vs.metadataJSONColumn != "" {
+		valuesStmt += fmt.Sprintf(", $%d", len(values)+1)
+		metadataJSON, err := json.Marshal(metadata)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to transform metadata to json: %w", err)
+		}
+		values = append(values, metadataJSON)
+	}
+	valuesStmt += ")"
+	query := insertStmt + valuesStmt
+	return query, values, nil
 }
 
 // SimilaritySearch performs a similarity search on the database using the
@@ -167,6 +174,7 @@ func (vs *VectorStore) SimilaritySearch(ctx context.Context, query string, _ int
 	if opts.Filters != nil {
 		whereClause = fmt.Sprintf("WHERE %s", opts.Filters)
 	}
+	vector := pgvector.NewVector(embedding)
 	stmt := fmt.Sprintf(`
         SELECT %s, %s(%s, '%s') AS distance FROM "%s"."%s" %s ORDER BY %s %s '%s' LIMIT $1::int;`,
 		columnNames, searchFunction, vs.embeddingColumn, vector.String(), vs.schemaName, vs.tableName, whereClause, vs.embeddingColumn, operator, vector.String())
@@ -254,7 +262,7 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 		concurrentlyStr = "CONCURRENTLY"
 	}
 
-	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
+	stmt := fmt.Sprintf(`CREATE INDEX %s %s ON "%s"."%s" USING %s (%s %s) %s %s`,
 		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
 	_, err := vs.engine.Pool.Exec(ctx, stmt)

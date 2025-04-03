@@ -20,7 +20,7 @@ type PostgresEngine struct {
 }
 
 // NewPostgresEngine creates a new PostgresEngine.
-func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, error) {
+func NewPostgresEngine(ctx context.Context, opts ...Option) (PostgresEngine, error) {
 	pgEngine := new(PostgresEngine)
 	cfg, err := applyClientOptions(opts...)
 	if err != nil {
@@ -36,7 +36,7 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 		}
 		cfg.connPool, err = createPool(ctx, cfg, usingIAMAuth)
 		if err != nil {
-			return &PostgresEngine{}, err
+			return PostgresEngine{}, err
 		}
 	}
 	pgEngine.Pool = cfg.connPool
@@ -45,7 +45,7 @@ func NewPostgresEngine(ctx context.Context, opts ...Option) (*PostgresEngine, er
 
 // createPool creates a connection pool to the PostgreSQL database.
 func createPool(ctx context.Context, cfg engineConfig, usingIAMAuth bool) (*pgxpool.Pool, error) {
-	var dialerOpts []cloudsqlconn.Option
+	dialerOpts := []cloudsqlconn.Option{cloudsqlconn.WithUserAgent(cfg.userAgents)}
 	dsn := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", cfg.user, cfg.password, cfg.database)
 	if usingIAMAuth {
 		dialerOpts = append(dialerOpts, cloudsqlconn.WithIAMAuthN())
