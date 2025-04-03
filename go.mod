@@ -222,13 +222,12 @@ require (
 	github.com/weaviate/weaviate-go-client/v4 v4.13.1
 	gitlab.com/golang-commonmark/markdown v0.0.0-20211110145824-bf3e522c626a
 	go.mongodb.org/mongo-driver v1.14.0
-	go.mongodb.org/mongo-driver/v2 v2.0.0-beta1
+	go.mongodb.org/mongo-driver/v2 v2.0.0
 	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
-	golang.org/x/oauth2 v0.24.0
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d
-	google.golang.org/api v0.210.0
-	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/api v0.183.0
+	google.golang.org/grpc v1.64.0
+	google.golang.org/protobuf v1.34.1
 	sigs.k8s.io/yaml v1.3.0
 )
