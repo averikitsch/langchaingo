@@ -97,9 +97,6 @@ func initVectorStore(t *testing.T) (alloydb.VectorStore, func() error) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
 	e, err := embeddings.NewEmbedder(llm)
 	if err != nil {
 		t.Fatal(err)

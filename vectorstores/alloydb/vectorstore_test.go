@@ -1,3 +1,4 @@
+//nolint:paralleltest
 package alloydb_test
 
 import (
@@ -8,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/llms/googleai"
+	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/util/alloydbutil"
 	"github.com/tmc/langchaingo/vectorstores/alloydb"
@@ -113,7 +114,9 @@ func vectorStore(t *testing.T, envVariables EnvVariables) (alloydb.VectorStore, 
 		t.Fatal(err)
 	}
 	// Initialize VertexAI LLM
-	llm, err := googleai.New(ctx, googleai.WithCloudProject(envVariables.ProjectID), googleai.WithCloudLocation(envVariables.Region), googleai.WithDefaultModel("text-embedding-005"))
+	llm, err := openai.New(
+		openai.WithEmbeddingModel("text-embedding-ada-002"),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -137,7 +140,6 @@ func vectorStore(t *testing.T, envVariables EnvVariables) (alloydb.VectorStore, 
 }
 
 func TestPingToDB(t *testing.T) {
-	t.Parallel()
 	envVariables := getEnvVariables(t)
 	engine := setEngine(t, envVariables)
 
@@ -149,11 +151,10 @@ func TestPingToDB(t *testing.T) {
 }
 
 func TestApplyVectorIndexAndDropIndex(t *testing.T) {
-	t.Parallel()
 	envVariables := getEnvVariables(t)
 	vs, cleanUpTableFn := vectorStore(t, envVariables)
 	ctx := context.Background()
-	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{})
+	idx := vs.NewBaseIndex("testindex", "hnsw", alloydb.CosineDistance{}, []string{}, alloydb.HNSWOptions{M: 4, EfConstruction: 16})
 	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false, false)
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +170,6 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 }
 
 func TestIsValidIndex(t *testing.T) {
-	t.Parallel()
 	envVariables := getEnvVariables(t)
 	vs, cleanUpTableFn := vectorStore(t, envVariables)
 	ctx := context.Background()
@@ -194,7 +194,6 @@ func TestIsValidIndex(t *testing.T) {
 }
 
 func TestAddDocuments(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	envVariables := getEnvVariables(t)
 	vs, cleanUpTableFn := vectorStore(t, envVariables)
