@@ -235,7 +235,7 @@ func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName str
 	createTableQuery := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s"."%s" (
 		id SERIAL PRIMARY KEY,
 		session_id TEXT NOT NULL,
-		data JSON NOT NULL,
+		data JSONB NOT NULL,
 		type TEXT NOT NULL
 	);`, cfg.schemaName, tableName)
 

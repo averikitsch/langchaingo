@@ -232,9 +232,9 @@ func (*VectorStore) processResultsToDocuments(results []SearchDocument) ([]schem
 }
 
 // ApplyVectorIndex creates an index in the table of the embeddings.
-func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently, overwrite bool) error {
+func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, name string, concurrently bool) error {
 	if index.indexType == "exactnearestneighbor" {
-		return vs.DropVectorIndex(ctx, name, overwrite)
+		return vs.DropVectorIndex(ctx, name)
 	}
 	function := index.distanceStrategy.searchFunction()
 	if index.indexType == "ScaNN" {
@@ -269,18 +269,18 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	if err != nil {
 		return fmt.Errorf("failed to execute creation of index: %w", err)
 	}
-	_, err = vs.engine.Pool.Exec(ctx, "COMMIT")
-	if err != nil {
-		return fmt.Errorf("failed to commit index: %w", err)
-	}
+
 	return nil
 }
 
-// ReIndex re-indexes the VectorStore.
-func (vs *VectorStore) ReIndex(ctx context.Context, indexName string) error {
-	if indexName == "" {
-		indexName = vs.tableName + defaultIndexNameSuffix
-	}
+// ReIndex recreates the index on the VectorStore.
+func (vs *VectorStore) ReIndex(ctx context.Context) error {
+	indexName := vs.tableName + defaultIndexNameSuffix
+	return vs.ReIndexWithName(ctx, indexName)
+}
+
+// ReIndex recreates the index on the VectorStore by name.
+func (vs *VectorStore) ReIndexWithName(ctx context.Context, indexName string) error {
 	query := fmt.Sprintf("REINDEX INDEX %s;", indexName)
 	_, err := vs.engine.Pool.Exec(ctx, query)
 	if err != nil {
@@ -291,11 +291,7 @@ func (vs *VectorStore) ReIndex(ctx context.Context, indexName string) error {
 }
 
 // DropVectorIndex drops the vector index from the VectorStore.
-func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string, overwrite bool) error {
-	// Overwrite allows dangerous operations like a Drop query.
-	if !overwrite {
-		return nil
-	}
+func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string) error {
 	if indexName == "" {
 		indexName = vs.tableName + defaultIndexNameSuffix
 	}

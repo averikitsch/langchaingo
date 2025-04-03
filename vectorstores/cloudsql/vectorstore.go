@@ -259,26 +259,12 @@ func (vs *VectorStore) ApplyVectorIndex(ctx context.Context, index BaseIndex, na
 	}
 
 	function := index.distanceStrategy.searchFunction()
-	stmt := fmt.Sprintf("CREATE INDEX %s %s ON %s.%s USING %s (%s %s) %s %s",
+	stmt := fmt.Sprintf(`CREATE INDEX %s %s ON "%s"."%s" USING %s (%s %s) %s %s`,
 		concurrentlyStr, name, vs.schemaName, vs.tableName, index.indexType, vs.embeddingColumn, function, params, filter)
 
 	_, err := vs.engine.Pool.Exec(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute creation of index: %w", err)
-	}
-
-	return nil
-}
-
-// DropVectorIndex drops the vector index from the VectorStore.
-func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string) error {
-	if indexName == "" {
-		indexName = vs.tableName + defaultIndexNameSuffix
-	}
-	query := fmt.Sprintf("DROP INDEX IF EXISTS %s;", indexName)
-	_, err := vs.engine.Pool.Exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to drop vector index: %w", err)
 	}
 
 	return nil
@@ -301,6 +287,20 @@ func (vs *VectorStore) ReIndexWithName(ctx context.Context, indexName string) er
 	return nil
 }
 
+// DropVectorIndex drops the vector index from the VectorStore.
+func (vs *VectorStore) DropVectorIndex(ctx context.Context, indexName string) error {
+	if indexName == "" {
+		indexName = vs.tableName + defaultIndexNameSuffix
+	}
+	query := fmt.Sprintf("DROP INDEX IF EXISTS %s;", indexName)
+	_, err := vs.engine.Pool.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to drop vector index: %w", err)
+	}
+
+	return nil
+}
+
 // IsValidIndex checks if index exists in the VectorStore.
 func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool, error) {
 	if indexName == "" {
@@ -315,4 +315,14 @@ func (vs *VectorStore) IsValidIndex(ctx context.Context, indexName string) (bool
 	}
 
 	return indexnameFromDB == indexName, nil
+}
+
+func (*VectorStore) NewBaseIndex(indexName, indexType string, strategy distanceStrategy, partialIndexes []string, opts Index) BaseIndex {
+	return BaseIndex{
+		name:             indexName,
+		indexType:        indexType,
+		distanceStrategy: strategy,
+		partialIndexes:   partialIndexes,
+		options:          opts,
+	}
 }
