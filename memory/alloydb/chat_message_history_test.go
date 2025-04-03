@@ -75,7 +75,6 @@ func TestValidateTable(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	ctx := context.Background()
 	engine, err := setEngine(ctx, t)
 	if err != nil {
 		t.Fatal(err)
