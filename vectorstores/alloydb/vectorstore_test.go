@@ -106,7 +106,7 @@ func vectorStore(t *testing.T, envVariables EnvVariables) (alloydb.VectorStore, 
 	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
 		TableName:         envVariables.Table,
 		OverwriteExisting: true,
-		VectorSize:        768,
+		VectorSize:        1536,
 		StoreMetadata:     true,
 	}
 	err := pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
