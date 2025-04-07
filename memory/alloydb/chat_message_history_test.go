@@ -59,27 +59,15 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 
 func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, error) {
 	t.Helper()
-	// username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
-	/*
-		pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-			alloydbutil.WithUser(username),
-			alloydbutil.WithPassword(password),
-			alloydbutil.WithDatabase(database),
-			alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
-		)
-	*/
+	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
+
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-		alloydbutil.WithUser("postgres"),
-		alloydbutil.WithPassword("alloydbtest"),
-		// WithIAMAccountEmail("diego.plascencia@globallogic.com"),
-		alloydbutil.WithDatabase("postgres"),
-		alloydbutil.WithAlloyDBInstance(
-			"devshop-mosaic-11010494",
-			"us-central1",
-			"senseai-alloydb-cluster",
-			"senseai-alloydb-cluster-primary"),
-		alloydbutil.WithIPType("PUBLIC"),
+		alloydbutil.WithUser(username),
+		alloydbutil.WithPassword(password),
+		alloydbutil.WithDatabase(database),
+		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
+
 	return pgEngine, err
 }
 
@@ -117,7 +105,6 @@ func TestValidateTable(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
-			// t.Parallel()
 			err = engine.InitChatHistoryTable(ctx, tc.tableName)
 			if err != nil {
 				t.Fatal("Failed to create chat msg table", err)
