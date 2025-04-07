@@ -1,3 +1,4 @@
+//nolint:all
 package alloydb_test
 
 import (
