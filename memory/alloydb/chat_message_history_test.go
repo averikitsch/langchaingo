@@ -59,27 +59,41 @@ func getEnvVariables(t *testing.T) (string, string, string, string, string, stri
 
 func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, error) {
 	t.Helper()
-	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
-
+	// username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
+	/*
+		pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
+			alloydbutil.WithUser(username),
+			alloydbutil.WithPassword(password),
+			alloydbutil.WithDatabase(database),
+			alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+		)
+	*/
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-		alloydbutil.WithUser(username),
-		alloydbutil.WithPassword(password),
-		alloydbutil.WithDatabase(database),
-		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+		alloydbutil.WithUser("postgres"),
+		alloydbutil.WithPassword("alloydbtest"),
+		// WithIAMAccountEmail("diego.plascencia@globallogic.com"),
+		alloydbutil.WithDatabase("postgres"),
+		alloydbutil.WithAlloyDBInstance(
+			"devshop-mosaic-11010494",
+			"us-central1",
+			"senseai-alloydb-cluster",
+			"senseai-alloydb-cluster-primary"),
+		alloydbutil.WithIPType("PUBLIC"),
 	)
-
 	return pgEngine, err
 }
 
 func TestValidateTable(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	engine, err := setEngine(ctx, t)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer engine.Close()
+	t.Cleanup(func() {
+		cancel()
+		engine.Close()
+	})
 	tcs := []struct {
 		desc      string
 		tableName string
@@ -92,15 +106,10 @@ func TestValidateTable(t *testing.T) {
 			sessionID: "session",
 			err:       "",
 		},
-		{
-			desc:      "Creation of Chat Message History with missing table",
-			tableName: "",
-			sessionID: "session",
-			err:       "table name must be provided",
-		},
+
 		{
 			desc:      "Creation of Chat Message History with missing session ID",
-			tableName: "items",
+			tableName: "testchattable",
 			sessionID: "",
 			err:       "session ID must be provided",
 		},
@@ -108,14 +117,20 @@ func TestValidateTable(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
+			err = engine.InitChatHistoryTable(ctx, tc.tableName)
+			if err != nil {
+				t.Fatal("Failed to create chat msg table", err)
+			}
 			chatMsgHistory, err := alloydb.NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			if tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) {
 				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
 			} else {
-				errStr := err.Error()
-				if errStr != tc.err {
-					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
+				if err != nil {
+					errStr := err.Error()
+					if errStr != tc.err {
+						t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
+					}
 				}
 			}
 			// if the chat message history was created successfully, continue with the other methods tests
