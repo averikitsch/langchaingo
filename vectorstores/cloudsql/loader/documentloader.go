@@ -293,8 +293,8 @@ func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter
 	return splitteddocs, nil
 }
 
-// NewPostgresLoaderConfig creates a new LoaderConfig.
-func NewPostgresLoaderConfig(engine cloudsqlutil.PostgresEngine, options ...PostgresLoaderConfigOption) (*Config, error) {
+// NewConfig creates a new Config.
+func NewConfig(engine cloudsqlutil.PostgresEngine, options ...Option) (*Config, error) {
 	config := &Config{
 		engine:     engine,
 		schemaName: defaultSchemaName,
@@ -305,14 +305,14 @@ func NewPostgresLoaderConfig(engine cloudsqlutil.PostgresEngine, options ...Post
 	}
 
 	if config.engine.Pool == nil {
-		return nil, fmt.Errorf("engine.Pool is must be specified")
+		return nil, fmt.Errorf("engine.Pool must be specified")
 	}
 
 	if config.query == "" && config.tableName == "" {
 		return nil, fmt.Errorf("either query or tableName must be specified")
 	}
 	if config.format != "" && config.formatter != nil {
-		return nil, fmt.Errorf("only one of 'format' or 'formatter' should be specified")
+		return nil, fmt.Errorf("only one of 'format' or 'formatter' must be specified")
 	}
 
 	if config.query == "" {
@@ -339,25 +339,25 @@ func NewPostgresLoaderConfig(engine cloudsqlutil.PostgresEngine, options ...Post
 	return config, nil
 }
 
-// PostgresLoaderConfigOption is a functional option for configuring the DocumentLoader.
-type PostgresLoaderConfigOption func(*Config)
+// Option is a functional option for configuring the DocumentLoader.
+type Option func(*Config)
 
 // WithSchemaName sets the schema name for the table. Defaults to "public".
-func WithSchemaName(schemaName string) PostgresLoaderConfigOption {
+func WithSchemaName(schemaName string) Option {
 	return func(config *Config) {
 		config.schemaName = schemaName
 	}
 }
 
 // WithQuery sets the SQL query to execute. If not provided, a default query is generated from the table name.
-func WithQuery(query string) PostgresLoaderConfigOption {
+func WithQuery(query string) Option {
 	return func(config *Config) {
 		config.query = query
 	}
 }
 
 // WithTableName sets the table name to load data from. If not provided, a custom query must be specified.
-func WithTableName(tableName string) PostgresLoaderConfigOption {
+func WithTableName(tableName string) Option {
 	return func(config *Config) {
 		config.tableName = tableName
 
@@ -365,7 +365,7 @@ func WithTableName(tableName string) PostgresLoaderConfigOption {
 }
 
 // WithFormatter sets a custom formatter to convert row data into document content.
-func WithFormatter(formatter func(map[string]interface{}, []string) string) PostgresLoaderConfigOption {
+func WithFormatter(formatter func(map[string]interface{}, []string) string) Option {
 	return func(config *Config) {
 		config.formatter = formatter
 	}
@@ -373,28 +373,28 @@ func WithFormatter(formatter func(map[string]interface{}, []string) string) Post
 
 // WithFormat sets the format for the document content. Predefined formats are "csv", "text", "json", and "yaml".
 // Only one of WithFormat or WithFormatter should be specified.
-func WithFormat(format string) PostgresLoaderConfigOption {
+func WithFormat(format string) Option {
 	return func(config *Config) {
 		config.format = format
 	}
 }
 
 // WithContentColumns sets the list of columns to use for the document content.
-func WithContentColumns(contentColumns []string) PostgresLoaderConfigOption {
+func WithContentColumns(contentColumns []string) Option {
 	return func(config *Config) {
 		config.contentColumns = contentColumns
 	}
 }
 
 // WithMetadataColumns sets the list of columns to use for the document metadata.
-func WithMetadataColumns(metadataColumns []string) PostgresLoaderConfigOption {
+func WithMetadataColumns(metadataColumns []string) Option {
 	return func(config *Config) {
 		config.metadataColumns = metadataColumns
 	}
 }
 
 // WithMetadataJSONColumn sets the column name containing JSON metadata.
-func WithMetadataJSONColumn(metadataJsonColumn string) PostgresLoaderConfigOption {
+func WithMetadataJSONColumn(metadataJsonColumn string) Option {
 	return func(config *Config) {
 		config.metadataJSONColumn = metadataJsonColumn
 	}
