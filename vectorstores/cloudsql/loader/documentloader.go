@@ -45,8 +45,8 @@ type DocumentLoader struct {
 	config *Config
 }
 
-// NewPostgresLoader creates a new DocumentLoader instance.
-func NewPostgresLoader(config *Config) (*DocumentLoader, error) {
+// NewDocumentLoader creates a new DocumentLoader instance.
+func NewDocumentLoader(config *Config) (*DocumentLoader, error) {
 
 	// return only one row to validate columns
 	re := regexp.MustCompile(`(?i)^\s*SELECT\s+.+\s+FROM\s+([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)\b`)
