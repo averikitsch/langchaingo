@@ -3,91 +3,70 @@ package cloudsql_test
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/util/cloudsqlutil"
 	"github.com/tmc/langchaingo/vectorstores/cloudsql"
 	"os"
+	"strings"
 	"testing"
+	"time"
 )
 
-type EnvVariables struct {
-	Username  string
-	Password  string
-	Database  string
-	ProjectID string
-	Region    string
-	Instance  string
-	Cluster   string
-	Table     string
-}
-
-func getEnvVariables(t *testing.T) EnvVariables {
+func preCheckEnvSetting(t *testing.T) string {
 	t.Helper()
 
-	username := os.Getenv("CLOUDSQL_USERNAME")
-	if username == "" {
-		t.Skip("env variable CLOUDSQL_USERNAME is empty")
-	}
-	// Requires environment variable CLOUDSQL_PASSWORD to be set.
-	password := os.Getenv("CLOUDSQL_PASSWORD")
-	if password == "" {
-		t.Skip("env variable CLOUDSQL_PASSWORD is empty")
-	}
-	// Requires environment variable CLOUDSQL_DATABASE to be set.
-	database := os.Getenv("CLOUDSQL_DATABASE")
-	if database == "" {
-		t.Skip("env variable CLOUDSQL_DATABASE is empty")
-	}
-	// Requires environment variable CLOUDSQL_ID to be set.
-	projectID := os.Getenv("PROJECT_ID")
-	if projectID == "" {
-		t.Skip("env variable PROJECT_ID is empty")
-	}
-	// Requires environment variable ALLOYDB_REGION to be set.
-	region := os.Getenv("CLOUDSQL_REGION")
-	if region == "" {
-		t.Skip("env variable CLOUDSQL_REGION is empty")
-	}
-	// Requires environment variable ALLOYDB_INSTANCE to be set.
-	instance := os.Getenv("CLOUDSQL_INSTANCE")
-	if instance == "" {
-		t.Skip("env variable CLOUDSQL_INSTANCE is empty")
-	}
-	// Requires environment variable CLOUDSQL_CLUSTER to be set.
-	cluster := os.Getenv("CLOUDSQL_CLUSTER")
-	if cluster == "" {
-		t.Skip("env variable CLOUDSQL_CLUSTER is empty")
-	}
-	// Requires environment variable CLOUDSQL_TABLE to be set.
-	table := os.Getenv("CLOUDSQL_TABLE")
-	if table == "" {
-		t.Skip("env variable CLOUDSQL_TABLE is empty")
+	if openaiKey := os.Getenv("OPENAI_API_KEY"); openaiKey == "" {
+		t.Skip("OPENAI_API_KEY not set")
 	}
 
-	envVariables := EnvVariables{
-		Username:  username,
-		Password:  password,
-		Database:  database,
-		ProjectID: projectID,
-		Region:    region,
-		Instance:  instance,
-		Cluster:   cluster,
-		Table:     table,
+	pgvectorURL := os.Getenv("PGVECTOR_CONNECTION_STRING")
+	if pgvectorURL == "" {
+		pgVectorContainer, err := tcpostgres.RunContainer(
+			context.Background(),
+			testcontainers.WithImage("docker.io/pgvector/pgvector:pg16"),
+			tcpostgres.WithDatabase("db_test"),
+			tcpostgres.WithUsername("user"),
+			tcpostgres.WithPassword("passw0rd!"),
+			testcontainers.WithWaitStrategy(
+				wait.ForLog("database system is ready to accept connections").
+					WithOccurrence(2).
+					WithStartupTimeout(30*time.Second)),
+		)
+		if err != nil && strings.Contains(err.Error(), "Cannot connect to the Docker daemon") {
+			t.Skip("Docker not available")
+		}
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, pgVectorContainer.Terminate(context.Background()))
+		})
+
+		str, err := pgVectorContainer.ConnectionString(context.Background(), "sslmode=disable")
+		require.NoError(t, err)
+
+		pgvectorURL = str
 	}
 
-	return envVariables
+	return pgvectorURL
 }
 
-func setEngine(t *testing.T, envVariables EnvVariables) cloudsqlutil.PostgresEngine {
+func setEngineWithImage(t *testing.T) cloudsqlutil.PostgresEngine {
 	t.Helper()
+	pgvectorURL := preCheckEnvSetting(t)
 	ctx := context.Background()
+	myPool, err := pgxpool.New(ctx, pgvectorURL)
+	if err != nil {
+		t.Fatal("Could not set Engine: ", err)
+	}
+	// Call NewPostgresEngine to initialize the database connection
 	pgEngine, err := cloudsqlutil.NewPostgresEngine(ctx,
-		cloudsqlutil.WithUser(envVariables.Username),
-		cloudsqlutil.WithPassword(envVariables.Password),
-		cloudsqlutil.WithDatabase(envVariables.Database),
-		cloudsqlutil.WithCloudSQLInstance(envVariables.ProjectID, envVariables.Region, envVariables.Instance),
+		cloudsqlutil.WithPool(myPool),
 	)
 	if err != nil {
 		t.Fatal("Could not set Engine: ", err)
@@ -96,12 +75,12 @@ func setEngine(t *testing.T, envVariables EnvVariables) cloudsqlutil.PostgresEng
 	return pgEngine
 }
 
-func vectorStore(t *testing.T, envVariables EnvVariables) (cloudsql.VectorStore, func() error) {
+func initVectorStore(t *testing.T) (cloudsql.VectorStore, func() error) {
 	t.Helper()
-	pgEngine := setEngine(t, envVariables)
+	pgEngine := setEngineWithImage(t)
 	ctx := context.Background()
 	vectorstoreTableoptions := cloudsqlutil.VectorstoreTableOptions{
-		TableName:         envVariables.Table,
+		TableName:         "my_test_table",
 		OverwriteExisting: true,
 		VectorSize:        1536,
 		StoreMetadata:     true,
@@ -114,7 +93,6 @@ func vectorStore(t *testing.T, envVariables EnvVariables) (cloudsql.VectorStore,
 	llm, err := openai.New(
 		openai.WithEmbeddingModel("text-embedding-ada-002"),
 	)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,22 +100,32 @@ func vectorStore(t *testing.T, envVariables EnvVariables) (cloudsql.VectorStore,
 	if err != nil {
 		t.Fatal(err)
 	}
-	vs, err := cloudsql.NewVectorStore(pgEngine, e, envVariables.Table)
+	vs, err := cloudsql.NewVectorStore(pgEngine, e, "my_test_table")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	cleanUpTableFn := func() error {
-		_, err := pgEngine.Pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", envVariables.Table))
+		_, err := pgEngine.Pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", "my_test_table"))
 		return err
 	}
 	return vs, cleanUpTableFn
 }
 
-func TestApplyVectorIndexAndDropIndex(t *testing.T) {
+func TestContainerPingToDB(t *testing.T) {
 	t.Parallel()
-	envVariables := getEnvVariables(t)
-	vs, cleanUpTableFn := vectorStore(t, envVariables)
+	engine := setEngineWithImage(t)
+
+	defer engine.Close()
+
+	if err := engine.Pool.Ping(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestContainerApplyVectorIndexAndDropIndex(t *testing.T) {
+	t.Parallel()
+	vs, cleanUpTableFn := initVectorStore(t)
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", cloudsql.CosineDistance{}, []string{}, cloudsql.HNSWOptions{M: 4, EfConstruction: 16})
 	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false)
@@ -154,22 +142,19 @@ func TestApplyVectorIndexAndDropIndex(t *testing.T) {
 	}
 }
 
-func TestIsValidIndex(t *testing.T) {
+func TestContainerIsValidIndex(t *testing.T) {
 	t.Parallel()
-	envVariables := getEnvVariables(t)
-	vs, cleanUpTableFn := vectorStore(t, envVariables)
+	vs, cleanUpTableFn := initVectorStore(t)
 	ctx := context.Background()
 	idx := vs.NewBaseIndex("testindex", "hnsw", cloudsql.CosineDistance{}, []string{}, cloudsql.HNSWOptions{M: 4, EfConstruction: 16})
 	err := vs.ApplyVectorIndex(ctx, idx, "testindex", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	_, err = vs.IsValidIndex(ctx, "testindex")
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	err = vs.DropVectorIndex(ctx, "testindex")
 	if err != nil {
 		t.Fatal(err)
@@ -180,11 +165,10 @@ func TestIsValidIndex(t *testing.T) {
 	}
 }
 
-func TestAddDocuments(t *testing.T) {
+func TestContainerAddDocuments(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	envVariables := getEnvVariables(t)
-	vs, cleanUpTableFn := vectorStore(t, envVariables)
+	vs, cleanUpTableFn := initVectorStore(t)
 
 	_, err := vs.AddDocuments(ctx, []schema.Document{
 		{
