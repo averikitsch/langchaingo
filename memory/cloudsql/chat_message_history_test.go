@@ -1,5 +1,3 @@
-//nolint:paralleltest
-//nolint:gocognit
 package cloudsql
 
 import (
@@ -67,6 +65,24 @@ func setEngine(ctx context.Context, t *testing.T) (cloudsqlutil.PostgresEngine, 
 	return pgEngine, err
 }
 
+func initChatHistoryTable(ctx context.Context, t *testing.T, engine cloudsqlutil.PostgresEngine, tableName string) {
+	t.Helper()
+	if tableName == "" {
+		t.Fatalf("table name must be provided")
+	}
+	err := engine.InitChatHistoryTable(ctx, tableName)
+	if err != nil {
+		t.Fatalf("error initializing table: %v", err)
+	}
+}
+
+func assertError(t *testing.T, err error, expectedError string) {
+	t.Helper()
+	if (err == nil && expectedError != "") || (err != nil && !strings.Contains(err.Error(), expectedError)) {
+		t.Fatalf("unexpected error: got %v, want %v", err, expectedError)
+	}
+}
+
 func TestValidateTable(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -106,37 +122,27 @@ func TestValidateTable(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
 			err = engine.InitChatHistoryTable(ctx, tc.tableName)
 			if err != nil {
 				t.Fatal("Failed to create chat msg table", err)
 			}
+			initChatHistoryTable(ctx, t, engine, tc.tableName)
 			chatMsgHistory, err := NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
-			if tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) {
-				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
-			} else if err != nil {
-				errStr := err.Error()
-				if errStr != tc.err {
-					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
-				}
-			}
+			assertError(t, err, tc.err)
+
 			// if the chat message history was created successfully, continue with the other methods tests
-			if err == nil {
-				err = chatMsgHistory.AddMessage(ctx, chatMsg{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.AddAIMessage(ctx, "AI message")
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.AddUserMessage(ctx, "user message")
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.Clear(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+			if err := chatMsgHistory.AddMessage(ctx, chatMsg{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := chatMsgHistory.AddAIMessage(ctx, "AI message"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chatMsgHistory.AddUserMessage(ctx, "user message"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chatMsgHistory.Clear(ctx); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
