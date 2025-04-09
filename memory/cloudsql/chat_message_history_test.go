@@ -1,3 +1,4 @@
+//nolint:paralleltest
 package cloudsql
 
 import (
@@ -111,12 +112,11 @@ func TestValidateTable(t *testing.T) {
 			chatMsgHistory, err := NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			if tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) {
 				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
-			} else {
-				if err != nil {
-					errStr := err.Error()
-					if errStr != tc.err {
-						t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
-					}
+			} else if err != nil {
+				errStr := err.Error()
+				if errStr != tc.err {
+					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
+
 				}
 			}
 			// if the chat message history was created successfully, continue with the other methods tests
