@@ -1,4 +1,5 @@
 //nolint:paralleltest
+//nolint:gocognit
 package cloudsql
 
 import (
@@ -116,7 +117,6 @@ func TestValidateTable(t *testing.T) {
 				errStr := err.Error()
 				if errStr != tc.err {
 					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
-
 				}
 			}
 			// if the chat message history was created successfully, continue with the other methods tests
