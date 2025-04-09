@@ -121,23 +121,21 @@ func TestValidateTable(t *testing.T) {
 				}
 			}
 			// if the chat message history was created successfully, continue with the other methods tests
-			if err == nil {
-				err = chatMsgHistory.AddMessage(ctx, chatMsg{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.AddAIMessage(ctx, "AI message")
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.AddUserMessage(ctx, "user message")
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.Clear(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+			err = chatMsgHistory.AddMessage(ctx, chatMsg{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = chatMsgHistory.AddAIMessage(ctx, "AI message")
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = chatMsgHistory.AddUserMessage(ctx, "user message")
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = chatMsgHistory.Clear(ctx)
+			if err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
