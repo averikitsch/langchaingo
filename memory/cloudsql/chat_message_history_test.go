@@ -1,5 +1,4 @@
-//nolint:all
-package alloydb_test
+package cloudsql_test
 
 import (
 	"context"
@@ -8,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/memory/alloydb"
-	"github.com/tmc/langchaingo/util/alloydbutil"
+	"github.com/tmc/langchaingo/memory/cloudsql"
+	"github.com/tmc/langchaingo/util/cloudsqlutil"
 )
 
 type chatMsg struct{}
@@ -22,50 +21,46 @@ func (chatMsg) GetContent() string {
 	return "test content"
 }
 
-func getEnvVariables(t *testing.T) (string, string, string, string, string, string, string) {
+func getEnvVariables(t *testing.T) (string, string, string, string, string, string) {
 	t.Helper()
 
-	username := os.Getenv("ALLOYDB_USERNAME")
+	username := os.Getenv("POSTGRES_USERNAME")
 	if username == "" {
-		t.Skip("ALLOYDB_USERNAME environment variable not set")
+		t.Skip("POSTGRES_USERNAME environment variable not set")
 	}
-	password := os.Getenv("ALLOYDB_PASSWORD")
+	password := os.Getenv("POSTGRES_PASSWORD")
 	if password == "" {
-		t.Skip("ALLOYDB_PASSWORD environment variable not set")
+		t.Skip("POSTGRES_PASSWORD environment variable not set")
 	}
-	database := os.Getenv("ALLOYDB_DATABASE")
+	database := os.Getenv("POSTGRES_DATABASE")
 	if database == "" {
-		t.Skip("ALLOYDB_DATABASE environment variable not set")
+		t.Skip("POSTGRES_DATABASE environment variable not set")
 	}
-	projectID := os.Getenv("ALLOYDB_PROJECT_ID")
+	projectID := os.Getenv("POSTGRES_PROJECT_ID")
 	if projectID == "" {
-		t.Skip("ALLOYDB_PROJECT_ID environment variable not set")
+		t.Skip("POSTGRES_PROJECT_ID environment variable not set")
 	}
-	region := os.Getenv("ALLOYDB_REGION")
+	region := os.Getenv("POSTGRES_REGION")
 	if region == "" {
-		t.Skip("ALLOYDB_REGION environment variable not set")
+		t.Skip("POSTGRES_REGION environment variable not set")
 	}
-	instance := os.Getenv("ALLOYDB_INSTANCE")
+	instance := os.Getenv("POSTGRES_INSTANCE")
 	if instance == "" {
-		t.Skip("ALLOYDB_INSTANCE environment variable not set")
-	}
-	cluster := os.Getenv("ALLOYDB_CLUSTER")
-	if cluster == "" {
-		t.Skip("ALLOYDB_CLUSTER environment variable not set")
+		t.Skip("POSTGRES_INSTANCE environment variable not set")
 	}
 
-	return username, password, database, projectID, region, instance, cluster
+	return username, password, database, projectID, region, instance
 }
 
-func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, error) {
+func setEngine(ctx context.Context, t *testing.T) (cloudsqlutil.PostgresEngine, error) {
 	t.Helper()
-	username, password, database, projectID, region, instance, cluster := getEnvVariables(t)
+	username, password, database, projectID, region, instance := getEnvVariables(t)
 
-	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-		alloydbutil.WithUser(username),
-		alloydbutil.WithPassword(password),
-		alloydbutil.WithDatabase(database),
-		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+	pgEngine, err := cloudsqlutil.NewPostgresEngine(ctx,
+		cloudsqlutil.WithUser(username),
+		cloudsqlutil.WithPassword(password),
+		cloudsqlutil.WithDatabase(database),
+		cloudsqlutil.WithCloudSQLInstance(projectID, region, instance),
 	)
 
 	return pgEngine, err
@@ -90,14 +85,19 @@ func TestValidateTable(t *testing.T) {
 	}{
 		{
 			desc:      "Successful creation of Chat Message History",
-			tableName: "items",
-			sessionID: "session",
+			tableName: "chatItems",
+			sessionID: "cloudSQLSession",
 			err:       "",
 		},
-
+		{
+			desc:      "Creation of Chat Message History with missing table",
+			tableName: "",
+			sessionID: "cloudSQLSession",
+			err:       "table name must be provided",
+		},
 		{
 			desc:      "Creation of Chat Message History with missing session ID",
-			tableName: "testchattable",
+			tableName: "chatCloudSQLItems",
 			sessionID: "",
 			err:       "session ID must be provided",
 		},
@@ -109,7 +109,7 @@ func TestValidateTable(t *testing.T) {
 			if err != nil {
 				t.Fatal("Failed to create chat msg table", err)
 			}
-			chatMsgHistory, err := alloydb.NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
+			chatMsgHistory, err := cloudsql.NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			if tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) {
 				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
 			} else {
