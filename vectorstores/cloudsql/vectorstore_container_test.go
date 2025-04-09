@@ -1,3 +1,4 @@
+// nolint
 package cloudsql_test
 
 import (
