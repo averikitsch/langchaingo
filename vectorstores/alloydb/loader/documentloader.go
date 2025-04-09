@@ -293,7 +293,7 @@ func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter
 	return splitteddocs, nil
 }
 
-// NewConfig creates a new LoaderConfig.
+// NewConfig creates a new Config.
 func NewConfig(engine alloydbutil.PostgresEngine, options ...Option) (*Config, error) {
 	config := &Config{
 		engine:     engine,
@@ -305,7 +305,7 @@ func NewConfig(engine alloydbutil.PostgresEngine, options ...Option) (*Config, e
 	}
 
 	if config.engine.Pool == nil {
-		return nil, fmt.Errorf("engine.Pool is must be specified")
+		return nil, fmt.Errorf("engine.Pool must be specified")
 	}
 
 	if config.query == "" && config.tableName == "" {
