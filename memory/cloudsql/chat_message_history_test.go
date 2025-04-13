@@ -65,17 +65,6 @@ func setEngine(ctx context.Context, t *testing.T) (cloudsqlutil.PostgresEngine, 
 	return pgEngine, err
 }
 
-func initChatHistoryTable(ctx context.Context, t *testing.T, engine cloudsqlutil.PostgresEngine, tableName string) {
-	t.Helper()
-	if tableName == "" {
-		t.Fatalf("table name must be provided")
-	}
-	err := engine.InitChatHistoryTable(ctx, tableName)
-	if err != nil {
-		t.Fatalf("error initializing table: %v", err)
-	}
-}
-
 func assertError(t *testing.T, err error, expectedError string) {
 	t.Helper()
 	if (err == nil && expectedError != "") || (err != nil && !strings.Contains(err.Error(), expectedError)) {
@@ -127,7 +116,6 @@ func TestValidateTable(t *testing.T) {
 			if err != nil {
 				t.Fatal("Failed to create chat msg table", err)
 			}
-			initChatHistoryTable(ctx, t, engine, tc.tableName)
 			chatMsgHistory, err := NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			assertError(t, err, tc.err)
 
