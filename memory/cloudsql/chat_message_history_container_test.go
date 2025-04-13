@@ -26,7 +26,7 @@ func (chatMsg) GetContent() string {
 	return "test content"
 }
 
-func preCheckEnvSetting(t *testing.T) string {
+func preCheckEnvSetting(ctx context.Context, t *testing.T) string {
 	t.Helper()
 
 	if openaiKey := os.Getenv("OPENAI_API_KEY"); openaiKey == "" {
@@ -36,7 +36,7 @@ func preCheckEnvSetting(t *testing.T) string {
 	pgvectorURL := os.Getenv("PGVECTOR_CONNECTION_STRING")
 	if pgvectorURL == "" {
 		pgVectorContainer, err := tcpostgres.RunContainer(
-			context.Background(),
+			ctx,
 			testcontainers.WithImage("docker.io/pgvector/pgvector:pg16"),
 			tcpostgres.WithDatabase("db_test"),
 			tcpostgres.WithUsername("user"),
@@ -51,10 +51,10 @@ func preCheckEnvSetting(t *testing.T) string {
 		}
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, pgVectorContainer.Terminate(context.Background()))
+			require.NoError(t, pgVectorContainer.Terminate(ctx))
 		})
 
-		str, err := pgVectorContainer.ConnectionString(context.Background(), "sslmode=disable")
+		str, err := pgVectorContainer.ConnectionString(ctx, "sslmode=disable")
 		require.NoError(t, err)
 
 		pgvectorURL = str
@@ -65,7 +65,7 @@ func preCheckEnvSetting(t *testing.T) string {
 
 func setEngineWithImage(ctx context.Context, t *testing.T) (cloudsqlutil.PostgresEngine, error) {
 	t.Helper()
-	pgvectorURL := preCheckEnvSetting(t)
+	pgvectorURL := preCheckEnvSetting(ctx, t)
 	myPool, err := pgxpool.New(ctx, pgvectorURL)
 	if err != nil {
 		t.Fatal("Could not set Engine: ", err)
