@@ -7,13 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"regexp"
 	"strings"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/averikitsch/langchaingo/schema"
 	"github.com/averikitsch/langchaingo/textsplitter"
 	"github.com/averikitsch/langchaingo/util/alloydbutil"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (
@@ -48,16 +50,16 @@ type DocumentLoader struct {
 // NewDocumentLoader creates a new DocumentLoader instance.
 func NewDocumentLoader(config *Config) (*DocumentLoader, error) {
 
-	// return only one row to validate columns
+	ctx := context.Background()
+
+	// Validate columns against the query result
 	re := regexp.MustCompile(`(?i)^\s*SELECT\s+.+\s+FROM\s+([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)\b`)
 	query := re.FindString(config.query)
 	if query == "" {
-		return nil, errors.New("extracting simple query is empty")
+		return nil, errors.New("query is not valid")
 	}
 	query = fmt.Sprintf("%s LIMIT 1", query)
 
-	// Validate columns against the query result
-	ctx := context.Background()
 	rows, err := config.engine.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
@@ -67,17 +69,12 @@ func NewDocumentLoader(config *Config) (*DocumentLoader, error) {
 	fieldDescription := rows.FieldDescriptions()
 
 	if len(config.contentColumns) == 0 {
-		for _, fd := range fieldDescription {
-			config.contentColumns = append(config.contentColumns, fd.Name)
-		}
+		config.contentColumns = []string{fieldDescription[0].Name}
 	}
 
 	if len(config.metadataColumns) == 0 {
 		metadataCols := make([]string, 0)
 		for _, col := range fieldDescription {
-
-			slices.Contains(config.contentColumns, col.Name)
-
 			if !slices.Contains(config.contentColumns, col.Name) {
 				metadataCols = append(metadataCols, col.Name)
 			}
@@ -184,30 +181,36 @@ func (l *DocumentLoader) parseDocFromRow(row map[string]interface{}) (schema.Doc
 	pageContent := l.config.formatter(row, l.config.contentColumns)
 	metadata := make(map[string]interface{})
 
+	populateJSONMetadata := func(data []byte) error {
+		var jsonMetadata map[string]interface{}
+		err := json.Unmarshal(data, &jsonMetadata)
+		if err != nil {
+			return fmt.Errorf("failed to parse JSON from column '%s': %w", l.config.metadataJSONColumn, err)
+		}
+		for k, v := range jsonMetadata {
+			metadata[k] = v
+		}
+		return nil
+	}
+
 	if l.config.metadataJSONColumn != "" {
-		if jsonStr, ok := row[l.config.metadataJSONColumn].([]byte); ok {
-			var jsonMetadata map[string]interface{}
-			err := json.Unmarshal(jsonStr, &jsonMetadata)
-			if err != nil {
-				return schema.Document{}, fmt.Errorf("failed to parse JSON from column '%s': %w", l.config.metadataJSONColumn, err)
+		value := row[l.config.metadataJSONColumn]
+		switch value.(type) {
+		case []byte:
+			if err := populateJSONMetadata(value.([]byte)); err != nil {
+				return schema.Document{}, err
 			}
-			for k, v := range jsonMetadata {
-				metadata[k] = v
+		case string:
+			if err := populateJSONMetadata([]byte(value.(string))); err != nil {
+				return schema.Document{}, err
 			}
-		} else if jsonStr, ok := row[l.config.metadataJSONColumn].(string); ok {
-			var jsonMetadata map[string]interface{}
-			err := json.Unmarshal([]byte(jsonStr), &jsonMetadata)
-			if err != nil {
-				return schema.Document{}, fmt.Errorf("failed to parse JSON from column '%s': %w", l.config.metadataJSONColumn, err)
-			}
-			for k, v := range jsonMetadata {
-				metadata[k] = v
-			}
+		default:
+			return schema.Document{}, fmt.Errorf("failed to parse JSON from column '%s': invalid column type", l.config.metadataJSONColumn)
 		}
 	}
 
 	for _, column := range l.config.metadataColumns {
-		if _, isJSONCol := row[column]; column != l.config.metadataJSONColumn && isJSONCol {
+		if column != l.config.metadataJSONColumn {
 			metadata[column] = row[column]
 		}
 	}
@@ -227,26 +230,64 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 	}
 	defer rows.Close()
 
-	cols := rows.FieldDescriptions()
+	fieldDescriptions := rows.FieldDescriptions()
+	columnNames := make([]string, len(fieldDescriptions))
+	valuesPrt := make([]interface{}, len(columnNames))
+
+	for i, fd := range fieldDescriptions {
+		columnNames[i] = fd.Name
+		switch fd.DataTypeOID {
+		case pgtype.TimeOID, pgtype.TimestampOID, pgtype.TimestamptzOID, pgtype.DateOID:
+			valuesPrt[i] = new(sql.NullTime)
+		case pgtype.VarcharOID, pgtype.TextOID, pgtype.JSONOID:
+			valuesPrt[i] = new(sql.NullString)
+		case pgtype.BoolOID:
+			valuesPrt[i] = new(sql.NullBool)
+		case pgtype.Float4OID, pgtype.Float8OID:
+			valuesPrt[i] = new(sql.NullFloat64)
+		case pgtype.Int2OID, pgtype.Int4OID, pgtype.Int8OID:
+			valuesPrt[i] = new(sql.NullInt64)
+		default:
+			valuesPrt[i] = new(sql.RawBytes)
+		}
+	}
 
 	for rows.Next() {
-		columnPointers := make([]interface{}, len(cols))
-		columnValues := make(map[string]interface{})
-
-		for i := range cols {
-			// Use sql.RawBytes to handle different data types initially
-			columnPointers[i] = new(sql.RawBytes)
+		columnValues := make(map[string]any, len(columnNames))
+		if err := rows.Scan(valuesPrt...); err != nil {
+			return nil, fmt.Errorf("scan row failed: %v", err)
 		}
 
-		if err = rows.Scan(columnPointers...); err != nil {
+		if err = rows.Scan(valuesPrt...); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
-		for i, col := range cols {
-			if val, ok := columnPointers[i].(*sql.RawBytes); ok {
-				columnValues[col.Name] = *val
-			} else {
-				columnValues[col.Name] = columnPointers[i]
+		for i, name := range columnNames {
+			switch v := valuesPrt[i].(type) {
+			case *sql.NullTime:
+				if v.Valid {
+					columnValues[name] = v.Time
+				}
+			case *sql.NullString:
+				if v.Valid {
+					columnValues[name] = v.String
+				}
+			case *sql.NullBool:
+				if v.Valid {
+					columnValues[name] = v.Bool
+				}
+			case *sql.NullInt64:
+				if v.Valid {
+					columnValues[name] = v.Int64
+				}
+			case *sql.NullFloat64:
+				if v.Valid {
+					columnValues[name] = v.Float64
+				}
+			case *sql.RawBytes:
+				columnValues[name] = *v
+			default:
+				columnValues[name] = valuesPrt[i]
 			}
 		}
 
@@ -312,11 +353,11 @@ func NewConfig(engine alloydbutil.PostgresEngine, options ...Option) (*Config, e
 		return nil, fmt.Errorf("either query or tableName must be specified")
 	}
 	if config.format != "" && config.formatter != nil {
-		return nil, fmt.Errorf("only one of 'format' or 'formatter' should be specified")
+		return nil, fmt.Errorf("only one of 'format' or 'formatter' must be specified")
 	}
 
 	if config.query == "" {
-		config.query = fmt.Sprintf(`SELECT * FROM "%s"."%s"`, config.schemaName, config.tableName)
+		config.query = fmt.Sprintf(`SELECT * FROM %s.%s`, config.schemaName, config.tableName)
 	}
 
 	if config.format != "" {
