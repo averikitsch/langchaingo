@@ -3,6 +3,11 @@ package alloydb_test
 
 import (
 	"context"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -10,18 +15,10 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/tmc/langchaingo/memory/alloydb"
 	"github.com/tmc/langchaingo/util/alloydbutil"
-	"os"
-	"strings"
-	"testing"
-	"time"
 )
 
 func preCheckEnvSetting(t *testing.T) string {
 	t.Helper()
-
-	if openaiKey := os.Getenv("OPENAI_API_KEY"); openaiKey == "" {
-		t.Skip("OPENAI_API_KEY not set")
-	}
 
 	pgvectorURL := os.Getenv("PGVECTOR_CONNECTION_STRING")
 	if pgvectorURL == "" {
@@ -72,7 +69,7 @@ func setEngineWithImage(t *testing.T) alloydbutil.PostgresEngine {
 	return pgEngine
 }
 
-func TestValidateTableWithConatiner(t *testing.T) {
+func TestValidateTableWithContainer(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	engine := setEngineWithImage(t)

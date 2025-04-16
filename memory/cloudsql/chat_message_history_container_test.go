@@ -29,10 +29,6 @@ func (chatMsg) GetContent() string {
 func preCheckEnvSetting(ctx context.Context, t *testing.T) string {
 	t.Helper()
 
-	if openaiKey := os.Getenv("OPENAI_API_KEY"); openaiKey == "" {
-		t.Skip("OPENAI_API_KEY not set")
-	}
-
 	pgvectorURL := os.Getenv("PGVECTOR_CONNECTION_STRING")
 	if pgvectorURL == "" {
 		pgVectorContainer, err := tcpostgres.RunContainer(
