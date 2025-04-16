@@ -34,7 +34,8 @@ func setupPgvector(ctx context.Context) (*pgvectorContainer, error) {
 			"POSTGRES_PASSWORD": "testpassword",
 			"POSTGRES_DB":       "testdb",
 		},
-		WaitingFor: wait.ForLog("database system is ready to accept connections").WithStartupTimeout(5 * time.Second),
+		WaitingFor: wait.ForLog("database system is ready to accept connections").
+			WithOccurrence(2).WithStartupTimeout(5 * time.Second),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -87,17 +88,6 @@ func setupEngine() (alloydbutil.PostgresEngine, func(), error) {
 	pool, err := pgxpool.New(ctx, container.URI)
 	if err != nil {
 		return alloydbutil.PostgresEngine{}, func() {}, fmt.Errorf("failed to instantiate pgx pool: %w", err)
-	}
-
-	// verify if we have connectivity with database. timeout is 3 seconds.
-	var attemptErr error
-	for attempts := 0; attempts < 3; attempts++ {
-		if attemptErr = pool.Ping(ctx); attemptErr != nil {
-			time.Sleep(1 * time.Second)
-		}
-	}
-	if attemptErr != nil {
-		return alloydbutil.PostgresEngine{}, func() {}, fmt.Errorf("failed to connect to postgres container: %w", attemptErr)
 	}
 
 	eng, err := alloydbutil.NewPostgresEngine(context.Background(),
