@@ -103,7 +103,6 @@ func main() {
 	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
 		alloydbutil.WithUser(username),
 		alloydbutil.WithPassword(password),
@@ -111,7 +110,6 @@ func main() {
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 		alloydbutil.WithIPType("PUBLIC"),
 	)
-
 	if err != nil {
 		log.Panic(err)
 	}
@@ -185,7 +183,6 @@ func main() {
 			},
 		},
 	})
-
 	if err != nil {
 		log.Panic(err)
 	}
