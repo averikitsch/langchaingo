@@ -66,7 +66,7 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 func printMessages(ctx context.Context, cmh alloydb.ChatMessageHistory) {
 	msgs, err := cmh.Messages(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	for _, msg := range msgs {
 		fmt.Println("Message:", msg)
@@ -85,19 +85,19 @@ func main() {
 		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// Creates a new table in the Postgres database, which will be used for storing Chat History.
 	err = pgEngine.InitChatHistoryTable(ctx, tableName)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// Creates a new Chat Message History
 	cmh, err := alloydb.NewChatMessageHistory(ctx, pgEngine, tableName, sessionID)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// Creates individual messages and adds them to the chat message history.
@@ -106,12 +106,12 @@ func main() {
 	// Adds a user message to the chat message history.
 	err = cmh.AddUserMessage(ctx, aiMessage.GetContent())
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	// Adds a user message to the chat message history.
 	err = cmh.AddUserMessage(ctx, humanMessage.GetContent())
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	printMessages(ctx, cmh)
@@ -126,7 +126,7 @@ func main() {
 	// Adds multiple messages to the chat message history.
 	err = cmh.AddMessages(ctx, multipleMessages)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	printMessages(ctx, cmh)
@@ -139,7 +139,7 @@ func main() {
 	// Overwrites the existing messages with new ones.
 	err = cmh.SetMessages(ctx, overWrittingMessages)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	printMessages(ctx, cmh)
@@ -147,6 +147,6 @@ func main() {
 	// Clear all the messages from the current session.
 	err = cmh.Clear(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 }

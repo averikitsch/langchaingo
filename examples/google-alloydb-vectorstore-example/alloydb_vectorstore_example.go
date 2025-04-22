@@ -66,24 +66,7 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 	return username, password, database, projectID, region, instance, cluster, table, location
 }
 
-func main() {
-	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
-		alloydbutil.WithUser(username),
-		alloydbutil.WithPassword(password),
-		alloydbutil.WithDatabase(database),
-		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
-		alloydbutil.WithIPType("PUBLIC"),
-	)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func initializeTable(ctx context.Context, pgEngine alloydbutil.PostgresEngine, table string) error {
 	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
 	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
 		TableName:         table,
@@ -102,26 +85,51 @@ func main() {
 		},
 	}
 
-	err = pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
+}
 
+func initializeEmbeddings(ctx context.Context, projectID, cloudLocation string) (*embeddings.EmbedderImpl, error) {
 	// Initialize VertexAI LLM
 	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	e, err := embeddings.NewEmbedder(llm)
+	return embeddings.NewEmbedder(llm)
+}
+
+func main() {
+	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
+	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pgEngine, err := alloydbutil.NewPostgresEngine(ctx,
+		alloydbutil.WithUser(username),
+		alloydbutil.WithPassword(password),
+		alloydbutil.WithDatabase(database),
+		alloydbutil.WithAlloyDBInstance(projectID, region, cluster, instance),
+		alloydbutil.WithIPType("PUBLIC"),
+	)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
+	}
+
+	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
+	err = initializeTable(ctx, pgEngine, table)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	// Initialize Embeddings
+	e, err := initializeEmbeddings(ctx, projectID, cloudLocation)
+	if err != nil {
+		log.Panic(err)
 	}
 
 	// Create a new AlloyDB Vectorstore
 	vs, err := alloydb.NewVectorStore(pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{
@@ -175,21 +183,24 @@ func main() {
 			},
 		},
 	})
-
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
+	similaritySearchesCalls(ctx, vs)
+}
+
+func similaritySearchesCalls(ctx context.Context, vs alloydb.VectorStore) {
 	docs, err := vs.SimilaritySearch(ctx, "Japan", 0)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	fmt.Println("Docs:", docs)
 	filter := "\"area\" > 1500"
 	filteredDocs, err := vs.SimilaritySearch(ctx, "Japan", 0, vectorstores.WithFilters(filter))
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	fmt.Println("FilteredDocs:", filteredDocs)
 }
