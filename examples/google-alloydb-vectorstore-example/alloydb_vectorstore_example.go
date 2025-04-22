@@ -113,25 +113,25 @@ func main() {
 	)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
 	err = initializeTable(ctx, pgEngine, table)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// Initialize Embeddings
 	e, err := initializeEmbeddings(ctx, projectID, cloudLocation)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// Create a new AlloyDB Vectorstore
 	vs, err := alloydb.NewVectorStore(pgEngine, e, table, alloydb.WithMetadataColumns([]string{"area", "population"}))
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{
@@ -187,19 +187,23 @@ func main() {
 	})
 
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
+	similaritySearchesCalls(ctx, vs)
+}
+
+func similaritySearchesCalls(ctx context.Context, vs alloydb.VectorStore) {
 	docs, err := vs.SimilaritySearch(ctx, "Japan", 0)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	fmt.Println("Docs:", docs)
 	filter := "\"area\" > 1500"
 	filteredDocs, err := vs.SimilaritySearch(ctx, "Japan", 0, vectorstores.WithFilters(filter))
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	fmt.Println("FilteredDocs:", filteredDocs)
 }
