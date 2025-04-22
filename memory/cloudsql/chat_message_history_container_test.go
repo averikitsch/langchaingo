@@ -12,19 +12,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/util/cloudsqlutil"
 )
-
-type chatMsg struct{}
-
-func (chatMsg) GetType() llms.ChatMessageType {
-	return llms.ChatMessageTypeHuman
-}
-
-func (chatMsg) GetContent() string {
-	return "test content"
-}
 
 func preCheckEnvSetting(ctx context.Context, t *testing.T) string {
 	t.Helper()
@@ -77,14 +66,7 @@ func setEngineWithImage(ctx context.Context, t *testing.T) (cloudsqlutil.Postgre
 	return pgEngine, err
 }
 
-func assertError(t *testing.T, err error, expectedError string) {
-	t.Helper()
-	if (err == nil && expectedError != "") || (err != nil && !strings.Contains(err.Error(), expectedError)) {
-		t.Fatalf("unexpected error: got %v, want %v", err, expectedError)
-	}
-}
-
-func TestValidateTable(t *testing.T) {
+func TestValidateTableWithContainer(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	engine, err := setEngineWithImage(ctx, t)
@@ -95,55 +77,5 @@ func TestValidateTable(t *testing.T) {
 		cancel()
 		engine.Close()
 	})
-	tcs := []struct {
-		desc      string
-		tableName string
-		sessionID string
-		err       string
-	}{
-		{
-			desc:      "Successful creation of Chat Message History",
-			tableName: "chatItems",
-			sessionID: "cloudSQLSession",
-			err:       "",
-		},
-		{
-			desc:      "Creation of Chat Message History with missing table",
-			tableName: "",
-			sessionID: "cloudSQLSession",
-			err:       "table name must be provided",
-		},
-		{
-			desc:      "Creation of Chat Message History with missing session ID",
-			tableName: "chatCloudSQLItems",
-			sessionID: "",
-			err:       "session ID must be provided",
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
-			err = engine.InitChatHistoryTable(ctx, tc.tableName)
-			if err != nil {
-				t.Fatal("Failed to create chat msg table", err)
-			}
-			chatMsgHistory, err := NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
-			assertError(t, err, tc.err)
-
-			// if the chat message history was created successfully, continue with the other methods tests
-			if err := chatMsgHistory.AddMessage(ctx, chatMsg{}); err != nil {
-				t.Fatal(err)
-			}
-			if err := chatMsgHistory.AddAIMessage(ctx, "AI message"); err != nil {
-				t.Fatal(err)
-			}
-			if err := chatMsgHistory.AddUserMessage(ctx, "user message"); err != nil {
-				t.Fatal(err)
-			}
-			if err := chatMsgHistory.Clear(ctx); err != nil {
-				t.Fatal(err)
-			}
-		})
-	}
+	cmhTestCases(ctx, t, engine)
 }

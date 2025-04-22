@@ -10,13 +10,13 @@ import (
 	"github.com/tmc/langchaingo/util/cloudsqlutil"
 )
 
-type chatMsg struct{}
+type testChatMsg struct{}
 
-func (chatMsg) GetType() llms.ChatMessageType {
+func (testChatMsg) GetType() llms.ChatMessageType {
 	return llms.ChatMessageTypeHuman
 }
 
-func (chatMsg) GetContent() string {
+func (testChatMsg) GetContent() string {
 	return "test content"
 }
 
@@ -72,17 +72,8 @@ func assertError(t *testing.T, err error, expectedError string) {
 	}
 }
 
-func TestValidateTable(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	engine, err := setEngine(ctx, t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		cancel()
-		engine.Close()
-	})
+func cmhTestCases(ctx context.Context, t *testing.T, engine cloudsqlutil.PostgresEngine) {
+	t.Helper()
 	tcs := []struct {
 		desc      string
 		tableName string
@@ -112,7 +103,7 @@ func TestValidateTable(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
-			err = engine.InitChatHistoryTable(ctx, tc.tableName)
+			err := engine.InitChatHistoryTable(ctx, tc.tableName)
 			if err != nil {
 				t.Fatal("Failed to create chat msg table", err)
 			}
@@ -120,7 +111,7 @@ func TestValidateTable(t *testing.T) {
 			assertError(t, err, tc.err)
 
 			// if the chat message history was created successfully, continue with the other methods tests
-			if err := chatMsgHistory.AddMessage(ctx, chatMsg{}); err != nil {
+			if err := chatMsgHistory.AddMessage(ctx, testChatMsg{}); err != nil {
 				t.Fatal(err)
 			}
 			if err := chatMsgHistory.AddAIMessage(ctx, "AI message"); err != nil {
@@ -134,4 +125,18 @@ func TestValidateTable(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateTable(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	engine, err := setEngine(ctx, t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cancel()
+		engine.Close()
+	})
+	cmhTestCases(ctx, t, engine)
 }
