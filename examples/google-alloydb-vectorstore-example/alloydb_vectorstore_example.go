@@ -66,6 +66,28 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 	return username, password, database, projectID, region, instance, cluster, table, location
 }
 
+func initializeTable(ctx context.Context, pgEngine alloydbutil.PostgresEngine, table string) error {
+	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
+	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
+		TableName:         table,
+		VectorSize:        768,
+		StoreMetadata:     true,
+		OverwriteExisting: true,
+		MetadataColumns: []alloydbutil.Column{
+			{
+				Name:     "area",
+				DataType: "int",
+			},
+			{
+				Name:     "population",
+				DataType: "int",
+			},
+		},
+	}
+
+	return pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
+}
+
 func main() {
 	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
 	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
@@ -85,24 +107,7 @@ func main() {
 	}
 
 	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
-	vectorstoreTableoptions := alloydbutil.VectorstoreTableOptions{
-		TableName:         table,
-		VectorSize:        768,
-		StoreMetadata:     true,
-		OverwriteExisting: true,
-		MetadataColumns: []alloydbutil.Column{
-			{
-				Name:     "area",
-				DataType: "int",
-			},
-			{
-				Name:     "population",
-				DataType: "int",
-			},
-		},
-	}
-
-	err = pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
+	err = initializeTable(ctx, pgEngine, table)
 	if err != nil {
 		log.Fatal(err)
 	}
