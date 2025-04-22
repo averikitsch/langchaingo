@@ -88,6 +88,16 @@ func initializeTable(ctx context.Context, pgEngine alloydbutil.PostgresEngine, t
 	return pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
 }
 
+func initializeEmbeddings(ctx context.Context, projectID, cloudLocation string) (*embeddings.EmbedderImpl, error) {
+	// Initialize VertexAI LLM
+	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
+	if err != nil {
+		return nil, err
+	}
+
+	return embeddings.NewEmbedder(llm)
+}
+
 func main() {
 	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
 	username, password, database, projectID, region, instance, cluster, table, cloudLocation := getEnvVariables()
@@ -112,13 +122,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Initialize VertexAI LLM
-	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	e, err := embeddings.NewEmbedder(llm)
+	// Initialize Embeddings
+	e, err := initializeEmbeddings(ctx, projectID, cloudLocation)
 	if err != nil {
 		log.Fatal(err)
 	}
