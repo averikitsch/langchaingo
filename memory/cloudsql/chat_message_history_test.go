@@ -2,6 +2,7 @@ package cloudsql
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -112,16 +113,16 @@ func cmhTestCases(ctx context.Context, t *testing.T, engine cloudsqlutil.Postgre
 
 			// if the chat message history was created successfully, continue with the other methods tests
 			if err := chatMsgHistory.AddMessage(ctx, testChatMsg{}); err != nil {
-				t.Fatal(err)
+				t.Fatal(fmt.Printf("AddMEssage Error: %s", err))
 			}
 			if err := chatMsgHistory.AddAIMessage(ctx, "AI message"); err != nil {
-				t.Fatal(err)
+				t.Fatal(fmt.Printf("AddAIMessage Error: %s", err))
 			}
 			if err := chatMsgHistory.AddUserMessage(ctx, "user message"); err != nil {
-				t.Fatal(err)
+				t.Fatal(fmt.Printf("AddUserMessage Error: %s", err))
 			}
 			if err := chatMsgHistory.Clear(ctx); err != nil {
-				t.Fatal(err)
+				t.Fatal(fmt.Printf("Clear Error: %s", err))
 			}
 		})
 	}

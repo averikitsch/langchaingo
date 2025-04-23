@@ -2,6 +2,7 @@ package cloudsql
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -15,10 +16,11 @@ import (
 	"github.com/tmc/langchaingo/util/cloudsqlutil"
 )
 
-func preCheckEnvSetting(ctx context.Context, t *testing.T) string {
+func preCheckEnvSetting(t *testing.T) string {
 	t.Helper()
 
 	pgvectorURL := os.Getenv("PGVECTOR_CONNECTION_STRING")
+	ctx := context.Background()
 	if pgvectorURL == "" {
 		pgVectorContainer, err := tcpostgres.RunContainer(
 			ctx,
@@ -50,7 +52,7 @@ func preCheckEnvSetting(ctx context.Context, t *testing.T) string {
 
 func setEngineWithImage(ctx context.Context, t *testing.T) (cloudsqlutil.PostgresEngine, error) {
 	t.Helper()
-	pgvectorURL := preCheckEnvSetting(ctx, t)
+	pgvectorURL := preCheckEnvSetting(t)
 	myPool, err := pgxpool.New(ctx, pgvectorURL)
 	if err != nil {
 		t.Fatal("Could not set Engine: ", err)
@@ -71,7 +73,7 @@ func TestValidateTableWithContainer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	engine, err := setEngineWithImage(ctx, t)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal(fmt.Printf("setEngineWithImage Error: %s", err))
 	}
 	t.Cleanup(func() {
 		cancel()
