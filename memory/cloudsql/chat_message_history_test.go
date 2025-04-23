@@ -88,7 +88,7 @@ func cmhTestCases(ctx context.Context, t *testing.T, engine cloudsqlutil.Postgre
 			err:       "",
 		},
 		{
-			desc:      "Creation of Chat Message History with missing table",
+			desc:      "Creation of Chat Message History with missing table name",
 			tableName: "",
 			sessionID: "cloudSQLSession",
 			err:       "table name must be provided",
