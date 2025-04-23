@@ -73,8 +73,12 @@ func assertError(t *testing.T, err error, expectedError string) {
 	}
 }
 
-func cmhTestCases(ctx context.Context, t *testing.T, engine cloudsqlutil.PostgresEngine) {
+func cmhTestCases(ctx context.Context, t *testing.T, engine cloudsqlutil.PostgresEngine, cancel context.CancelFunc) {
 	t.Helper()
+	t.Cleanup(func() {
+		cancel()
+		engine.Close()
+	})
 	tcs := []struct {
 		desc      string
 		tableName string
@@ -110,19 +114,20 @@ func cmhTestCases(ctx context.Context, t *testing.T, engine cloudsqlutil.Postgre
 			}
 			chatMsgHistory, err := NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			assertError(t, err, tc.err)
-
 			// if the chat message history was created successfully, continue with the other methods tests
-			if err := chatMsgHistory.AddMessage(ctx, testChatMsg{}); err != nil {
-				t.Fatal(fmt.Printf("AddMEssage Error: %s", err))
-			}
-			if err := chatMsgHistory.AddAIMessage(ctx, "AI message"); err != nil {
-				t.Fatal(fmt.Printf("AddAIMessage Error: %s", err))
-			}
-			if err := chatMsgHistory.AddUserMessage(ctx, "user message"); err != nil {
-				t.Fatal(fmt.Printf("AddUserMessage Error: %s", err))
-			}
-			if err := chatMsgHistory.Clear(ctx); err != nil {
-				t.Fatal(fmt.Printf("Clear Error: %s", err))
+			if tc.err == "" {
+				if err := chatMsgHistory.AddMessage(ctx, testChatMsg{}); err != nil {
+					t.Fatal(fmt.Printf("AddMEssage Error: %s", err))
+				}
+				if err := chatMsgHistory.AddAIMessage(ctx, "AI message"); err != nil {
+					t.Fatal(fmt.Printf("AddAIMessage Error: %s", err))
+				}
+				if err := chatMsgHistory.AddUserMessage(ctx, "user message"); err != nil {
+					t.Fatal(fmt.Printf("AddUserMessage Error: %s", err))
+				}
+				if err := chatMsgHistory.Clear(ctx); err != nil {
+					t.Fatal(fmt.Printf("Clear Error: %s", err))
+				}
 			}
 		})
 	}
@@ -135,9 +140,5 @@ func TestValidateTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		cancel()
-		engine.Close()
-	})
-	cmhTestCases(ctx, t, engine)
+	cmhTestCases(ctx, t, engine, cancel)
 }

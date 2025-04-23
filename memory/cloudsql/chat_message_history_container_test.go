@@ -75,9 +75,5 @@ func TestValidateTableWithContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(fmt.Printf("setEngineWithImage Error: %s", err))
 	}
-	t.Cleanup(func() {
-		cancel()
-		engine.Close()
-	})
-	cmhTestCases(ctx, t, engine)
+	cmhTestCases(ctx, t, engine, cancel)
 }
