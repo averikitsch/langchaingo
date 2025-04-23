@@ -110,7 +110,7 @@ func cmhTestCases(ctx context.Context, t *testing.T, engine cloudsqlutil.Postgre
 			t.Parallel()
 			err := engine.InitChatHistoryTable(ctx, tc.tableName)
 			if err != nil {
-				t.Fatal("Failed to create chat msg table", err)
+				assertError(t, err, tc.err)
 			}
 			chatMsgHistory, err := NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			assertError(t, err, tc.err)
