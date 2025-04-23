@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
-
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/googleai"
 	"github.com/tmc/langchaingo/llms/googleai/vertex"
@@ -13,6 +10,8 @@ import (
 	"github.com/tmc/langchaingo/util/cloudsqlutil"
 	"github.com/tmc/langchaingo/vectorstores"
 	"github.com/tmc/langchaingo/vectorstores/cloudsql"
+	"log"
+	"os"
 )
 
 func getEnvVariables() (string, string, string, string, string, string, string, string) {
@@ -61,24 +60,7 @@ func getEnvVariables() (string, string, string, string, string, string, string, 
 	return username, password, database, projectID, region, instance, table, location
 }
 
-func main() {
-	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
-	username, password, database, projectID, region, instance, table, cloudLocation := getEnvVariables()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	pgEngine, err := cloudsqlutil.NewPostgresEngine(ctx,
-		cloudsqlutil.WithUser(username),
-		cloudsqlutil.WithPassword(password),
-		cloudsqlutil.WithDatabase(database),
-		cloudsqlutil.WithCloudSQLInstance(projectID, region, instance),
-		cloudsqlutil.WithIPType("PUBLIC"),
-	)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func initializeTable(ctx context.Context, pgEngine cloudsqlutil.PostgresEngine, table string) error {
 	// Initialize table for the Vectorstore to use. You only need to do this the first time you use this table.
 	vectorstoreTableoptions := cloudsqlutil.VectorstoreTableOptions{
 		TableName:         table,
@@ -97,26 +79,49 @@ func main() {
 		},
 	}
 
-	err = pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return pgEngine.InitVectorstoreTable(ctx, vectorstoreTableoptions)
+}
 
+func initializeEmbeddings(ctx context.Context, projectID, cloudLocation string) (*embeddings.EmbedderImpl, error) {
 	// Initialize VertexAI LLM
 	llm, err := vertex.New(ctx, googleai.WithCloudProject(projectID), googleai.WithCloudLocation(cloudLocation), googleai.WithDefaultModel("text-embedding-005"))
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
-	e, err := embeddings.NewEmbedder(llm)
+	return embeddings.NewEmbedder(llm)
+}
+
+func main() {
+	// Requires the Environment variables to be set as indicated in the getEnvVariables function.
+	username, password, database, projectID, region, instance, table, cloudLocation := getEnvVariables()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	pgEngine, err := cloudsqlutil.NewPostgresEngine(ctx,
+		cloudsqlutil.WithUser(username),
+		cloudsqlutil.WithPassword(password),
+		cloudsqlutil.WithDatabase(database),
+		cloudsqlutil.WithCloudSQLInstance(projectID, region, instance),
+		cloudsqlutil.WithIPType("PUBLIC"),
+	)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
+	}
+
+	err = initializeTable(ctx, pgEngine, cloudLocation)
+	if err != nil {
+		log.Panic(err)
+	}
+	e, err := initializeEmbeddings(ctx, projectID, cloudLocation)
+	if err != nil {
+		log.Panic(err)
 	}
 
 	// Create a new Vectorstore
 	vs, err := cloudsql.NewVectorStore(pgEngine, e, table, cloudsql.WithMetadataColumns([]string{"area", "population"}))
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	_, err = vs.AddDocuments(ctx, []schema.Document{
@@ -170,21 +175,23 @@ func main() {
 			},
 		},
 	})
-
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
+	similaritySearchesCalls(ctx, vs)
+}
 
+func similaritySearchesCalls(ctx context.Context, vs cloudsql.VectorStore) {
 	docs, err := vs.SimilaritySearch(ctx, "Japan", 0)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	fmt.Println("Docs:", docs)
 	filter := "\"area\" > 1500"
 	filteredDocs, err := vs.SimilaritySearch(ctx, "Japan", 0, vectorstores.WithFilters(filter))
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	fmt.Println("FilteredDocs:", filteredDocs)
 }
