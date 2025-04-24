@@ -230,6 +230,9 @@ func (p *PostgresEngine) InitVectorstoreTable(ctx context.Context, opts Vectorst
 
 // initChatHistoryTable creates a table to store chat history.
 func (p *PostgresEngine) InitChatHistoryTable(ctx context.Context, tableName string, opts ...OptionInitChatHistoryTable) error {
+	if tableName == "" {
+		return errors.New("table name must be provided")
+	}
 	cfg := applyChatMessageHistoryOptions(opts...)
 
 	createTableQuery := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s"."%s" (

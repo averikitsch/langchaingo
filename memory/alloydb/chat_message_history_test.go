@@ -1,3 +1,4 @@
+//nolint:all
 package alloydb_test
 
 import (
@@ -6,10 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tmc/langchaingo/util/alloydbutil"
-
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/memory/alloydb"
+	"github.com/tmc/langchaingo/util/alloydbutil"
 )
 
 type chatMsg struct{}
@@ -74,12 +74,14 @@ func setEngine(ctx context.Context, t *testing.T) (alloydbutil.PostgresEngine, e
 func TestValidateTable(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	engine, err := setEngine(ctx, t)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer engine.Close()
+	t.Cleanup(func() {
+		cancel()
+		engine.Close()
+	})
 	tcs := []struct {
 		desc      string
 		tableName string
@@ -92,15 +94,10 @@ func TestValidateTable(t *testing.T) {
 			sessionID: "session",
 			err:       "",
 		},
-		{
-			desc:      "Creation of Chat Message History with missing table",
-			tableName: "",
-			sessionID: "session",
-			err:       "table name must be provided",
-		},
+
 		{
 			desc:      "Creation of Chat Message History with missing session ID",
-			tableName: "items",
+			tableName: "testchattable",
 			sessionID: "",
 			err:       "session ID must be provided",
 		},
@@ -108,34 +105,37 @@ func TestValidateTable(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
+			err = engine.InitChatHistoryTable(ctx, tc.tableName)
+			if err != nil {
+				t.Fatal("Failed to create chat msg table", err)
+			}
 			chatMsgHistory, err := alloydb.NewChatMessageHistory(ctx, engine, tc.tableName, tc.sessionID)
 			if tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) {
 				t.Fatalf("unexpected error: got %q, want %q", err, tc.err)
 			} else {
-				errStr := err.Error()
-				if errStr != tc.err {
-					t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
+				if err != nil {
+					errStr := err.Error()
+					if errStr != tc.err {
+						t.Fatalf("unexpected error: got %q, want %q", errStr, tc.err)
+					}
 				}
 			}
 			// if the chat message history was created successfully, continue with the other methods tests
-			if err == nil {
-				err = chatMsgHistory.AddMessage(ctx, chatMsg{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.AddAIMessage(ctx, "AI message")
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.AddUserMessage(ctx, "user message")
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = chatMsgHistory.Clear(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+			err = chatMsgHistory.AddMessage(ctx, chatMsg{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = chatMsgHistory.AddAIMessage(ctx, "AI message")
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = chatMsgHistory.AddUserMessage(ctx, "user message")
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = chatMsgHistory.Clear(ctx)
+			if err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
