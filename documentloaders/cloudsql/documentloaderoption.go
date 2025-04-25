@@ -30,7 +30,6 @@ func WithQuery(query string) DocumentLoaderOption {
 func WithTableName(tableName string) DocumentLoaderOption {
 	return func(documentLoader *DocumentLoader) {
 		documentLoader.tableName = tableName
-
 	}
 }
 

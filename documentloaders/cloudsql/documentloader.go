@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -15,12 +16,103 @@ import (
 	"github.com/averikitsch/langchaingo/textsplitter"
 	"github.com/averikitsch/langchaingo/util/cloudsqlutil"
 	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
 	defaultMetadataJSONColumn = "langchain_metadata"
 	defaultSchemaName         = "public"
 )
+
+type valueProcessor struct {
+	extractors map[reflect.Type]func(any) (any, bool)
+}
+
+func newValueProcessor() *valueProcessor {
+	return &valueProcessor{
+		extractors: map[reflect.Type]func(any) (any, bool){
+			reflect.TypeOf(&sql.NullTime{}): func(v any) (any, bool) {
+				if nv, ok := v.(*sql.NullTime); ok && nv.Valid {
+					return nv.Time, true
+				}
+				return nil, false
+			},
+			reflect.TypeOf(&sql.NullString{}): func(v any) (any, bool) {
+				if nv, ok := v.(*sql.NullString); ok && nv.Valid {
+					return nv.String, true
+				}
+				return nil, false
+			},
+			reflect.TypeOf(&sql.NullBool{}): func(v any) (any, bool) {
+				if nv, ok := v.(*sql.NullBool); ok && nv.Valid {
+					return nv.Bool, true
+				}
+				return nil, false
+			},
+			reflect.TypeOf(&sql.NullInt64{}): func(v any) (any, bool) {
+				if nv, ok := v.(*sql.NullInt64); ok && nv.Valid {
+					return nv.Int64, true
+				}
+				return nil, false
+			},
+			reflect.TypeOf(&sql.NullFloat64{}): func(v any) (any, bool) {
+				if nv, ok := v.(*sql.NullFloat64); ok && nv.Valid {
+					return nv.Float64, true
+				}
+				return nil, false
+			},
+			reflect.TypeOf(&sql.RawBytes{}): func(v any) (any, bool) {
+				if rv, ok := v.(*sql.RawBytes); ok {
+					return *rv, true
+				}
+				return nil, false
+			},
+		},
+	}
+}
+
+func (vp *valueProcessor) process(valuesPrt []any, columnNames []string) map[string]any {
+	columnValues := make(map[string]any)
+	for i, name := range columnNames {
+		if handler, ok := vp.extractors[reflect.TypeOf(valuesPrt[i])]; ok {
+			if val, valid := handler(valuesPrt[i]); valid {
+				columnValues[name] = val
+				continue
+			}
+		}
+		columnValues[name] = valuesPrt[i]
+	}
+	return columnValues
+}
+
+type oidProcessor struct {
+	extractors map[pgtype.OID]any
+}
+
+func newOidProcessor() *oidProcessor {
+	return &oidProcessor{
+		extractors: map[pgtype.OID]any{
+			pgtype.TimeOID:        new(sql.NullTime),
+			pgtype.TimestampOID:   new(sql.NullTime),
+			pgtype.TimestamptzOID: new(sql.NullTime),
+			pgtype.DateOID:        new(sql.NullTime),
+			pgtype.VarcharOID:     new(sql.NullString),
+			pgtype.TextOID:        new(sql.NullString),
+			pgtype.JSONOID:        new(sql.NullString),
+			pgtype.BoolOID:        new(sql.NullBool),
+			pgtype.Float4OID:      new(sql.NullFloat64),
+			pgtype.Float8OID:      new(sql.NullFloat64),
+			pgtype.Int2OID:        new(sql.NullInt64),
+			pgtype.Int4OID:        new(sql.NullInt64),
+			pgtype.Int8OID:        new(sql.NullInt64),
+		},
+	}
+}
+
+func (vp *oidProcessor) process(oid pgtype.OID) (any, bool) {
+	v, ok := vp.extractors[oid]
+	return v, ok
+}
 
 // DocumentLoader is responsible for loading documents from a Postgres database.
 type DocumentLoader struct {
@@ -32,85 +124,44 @@ type DocumentLoader struct {
 	metadataColumns    []string
 	metadataJSONColumn string
 	format             string
-	formatter          func(map[string]interface{}, []string) string
+	formatter          func(map[string]any, []string) string
+
+	oidProcessor   *oidProcessor
+	valueProcessor *valueProcessor
 }
 
 // NewDocumentLoader creates a new DocumentLoader instance.
 func NewDocumentLoader(ctx context.Context, options []DocumentLoaderOption) (*DocumentLoader, error) {
-
 	documentLoader, err := applyCloudSQLDocumentLoaderOptions(options)
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate columns against the query result
-	re := regexp.MustCompile(`(?i)^\s*SELECT\s+.+\s+FROM\s+([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)\b`)
-	query := re.FindString(documentLoader.query)
-	if query == "" {
-		return nil, errors.New("query is not valid")
+	if err := validateQuery(documentLoader.query); err != nil {
+		return nil, err
 	}
-	query = fmt.Sprintf("%s LIMIT 1", query)
 
-	rows, err := documentLoader.engine.Pool.Query(ctx, query)
+	fieldDescriptions, err := documentLoader.getFieldDescriptions(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
-	}
-	defer rows.Close()
-
-	fieldDescription := rows.FieldDescriptions()
-
-	if len(documentLoader.contentColumns) == 0 {
-		documentLoader.contentColumns = []string{fieldDescription[0].Name}
+		return nil, err
 	}
 
-	if len(documentLoader.metadataColumns) == 0 {
-		for _, col := range fieldDescription {
-			if !slices.Contains(documentLoader.contentColumns, col.Name) {
-				documentLoader.metadataColumns = append(documentLoader.metadataColumns, col.Name)
-			}
-		}
+	if err := documentLoader.configureColumns(fieldDescriptions); err != nil {
+		return nil, err
 	}
 
-	if documentLoader.metadataJSONColumn == "" {
-		documentLoader.metadataJSONColumn = defaultMetadataJSONColumn
-	}
-	found := false
-	for _, col := range fieldDescription {
-		if col.Name == documentLoader.metadataJSONColumn {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return nil, fmt.Errorf("metadata JSON column '%s' not found in query result", documentLoader.metadataJSONColumn)
+	if err := documentLoader.validateColumns(fieldDescriptions); err != nil {
+		return nil, err
 	}
 
-	allNames := make(map[string]struct{})
-	for _, name := range documentLoader.contentColumns {
-		allNames[name] = struct{}{}
-	}
-	for _, name := range documentLoader.metadataColumns {
-		allNames[name] = struct{}{}
-	}
-
-	for name := range allNames {
-		found := false
-		for _, col := range fieldDescription {
-			if col.Name == name {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("column '%s' not found in query result", name)
-		}
-	}
+	documentLoader.oidProcessor = newOidProcessor()
+	documentLoader.valueProcessor = newValueProcessor()
 
 	return documentLoader, nil
 }
 
 // textFormatter formats row data into a text string.
-func textFormatter(row map[string]interface{}, contentColumns []string) string {
+func textFormatter(row map[string]any, contentColumns []string) string {
 	var sb strings.Builder
 	for _, column := range contentColumns {
 		if val, ok := row[column]; ok {
@@ -121,7 +172,7 @@ func textFormatter(row map[string]interface{}, contentColumns []string) string {
 }
 
 // csvFormatter formats row data into a CSV string.
-func csvFormatter(row map[string]interface{}, contentColumns []string) string {
+func csvFormatter(row map[string]any, contentColumns []string) string {
 	var sb strings.Builder
 	writer := csv.NewWriter(&sb)
 	record := make([]string, 0, len(contentColumns))
@@ -139,7 +190,7 @@ func csvFormatter(row map[string]interface{}, contentColumns []string) string {
 }
 
 // yamlFormatter formats row data into a YAML string.
-func yamlFormatter(row map[string]interface{}, contentColumns []string) string {
+func yamlFormatter(row map[string]any, contentColumns []string) string {
 	var sb strings.Builder
 	for _, column := range contentColumns {
 		if val, ok := row[column]; ok {
@@ -150,8 +201,8 @@ func yamlFormatter(row map[string]interface{}, contentColumns []string) string {
 }
 
 // jsonFormatter formats row data into a JSON string.
-func jsonFormatter(row map[string]interface{}, contentColumns []string) string {
-	data := make(map[string]interface{})
+func jsonFormatter(row map[string]any, contentColumns []string) string {
+	data := make(map[string]any)
 	for _, column := range contentColumns {
 		if val, ok := row[column]; ok {
 			data[column] = val
@@ -166,12 +217,12 @@ func jsonFormatter(row map[string]interface{}, contentColumns []string) string {
 }
 
 // parseDocFromRow parses a Document from a row of data.
-func (l *DocumentLoader) parseDocFromRow(row map[string]interface{}) (schema.Document, error) {
+func (l *DocumentLoader) parseDocFromRow(row map[string]any) (schema.Document, error) {
 	pageContent := l.formatter(row, l.contentColumns)
-	metadata := make(map[string]interface{})
+	metadata := make(map[string]any)
 
 	populateJSONMetadata := func(data []byte) error {
-		var jsonMetadata map[string]interface{}
+		var jsonMetadata map[string]any
 		err := json.Unmarshal(data, &jsonMetadata)
 		if err != nil {
 			return fmt.Errorf("failed to parse JSON from column '%s': %w", l.metadataJSONColumn, err)
@@ -221,28 +272,18 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 
 	fieldDescriptions := rows.FieldDescriptions()
 	columnNames := make([]string, len(fieldDescriptions))
-	valuesPrt := make([]interface{}, len(columnNames))
+	valuesPrt := make([]any, len(columnNames))
 
 	for i, fd := range fieldDescriptions {
 		columnNames[i] = fd.Name
-		switch fd.DataTypeOID {
-		case pgtype.TimeOID, pgtype.TimestampOID, pgtype.TimestamptzOID, pgtype.DateOID:
-			valuesPrt[i] = new(sql.NullTime)
-		case pgtype.VarcharOID, pgtype.TextOID, pgtype.JSONOID:
-			valuesPrt[i] = new(sql.NullString)
-		case pgtype.BoolOID:
-			valuesPrt[i] = new(sql.NullBool)
-		case pgtype.Float4OID, pgtype.Float8OID:
-			valuesPrt[i] = new(sql.NullFloat64)
-		case pgtype.Int2OID, pgtype.Int4OID, pgtype.Int8OID:
-			valuesPrt[i] = new(sql.NullInt64)
-		default:
+		t, ok := l.oidProcessor.process(pgtype.OID(fd.DataTypeOID))
+		if !ok {
 			valuesPrt[i] = new(sql.RawBytes)
 		}
+		valuesPrt[i] = t
 	}
 
 	for rows.Next() {
-		columnValues := make(map[string]any, len(columnNames))
 		if err := rows.Scan(valuesPrt...); err != nil {
 			return nil, fmt.Errorf("scan row failed: %w", err)
 		}
@@ -251,34 +292,7 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
-		for i, name := range columnNames {
-			switch v := valuesPrt[i].(type) {
-			case *sql.NullTime:
-				if v.Valid {
-					columnValues[name] = v.Time
-				}
-			case *sql.NullString:
-				if v.Valid {
-					columnValues[name] = v.String
-				}
-			case *sql.NullBool:
-				if v.Valid {
-					columnValues[name] = v.Bool
-				}
-			case *sql.NullInt64:
-				if v.Valid {
-					columnValues[name] = v.Int64
-				}
-			case *sql.NullFloat64:
-				if v.Valid {
-					columnValues[name] = v.Float64
-				}
-			case *sql.RawBytes:
-				columnValues[name] = *v
-			default:
-				columnValues[name] = valuesPrt[i]
-			}
-		}
+		columnValues := l.valueProcessor.process(valuesPrt, columnNames)
 
 		doc, err := l.parseDocFromRow(columnValues)
 		if err != nil {
@@ -332,15 +346,32 @@ func applyCloudSQLDocumentLoaderOptions(options []DocumentLoaderOption) (*Docume
 		opt(dl)
 	}
 
+	if err := validateFunc(dl); err != nil {
+		return nil, err
+	}
+
+	return dl, nil
+}
+
+func validateFunc(dl *DocumentLoader) error {
+	formatters := map[string]func(_ map[string]any, _ []string) string{
+		"csv":  csvFormatter,
+		"":     textFormatter,
+		"text": textFormatter,
+		"json": jsonFormatter,
+		"yaml": yamlFormatter,
+	}
+
 	if dl.engine.Pool == nil {
-		return nil, fmt.Errorf("engine.Pool must be specified")
+		return fmt.Errorf("engine.Pool must be specified")
 	}
 
 	if dl.query == "" && dl.tableName == "" {
-		return nil, fmt.Errorf("either query or tableName must be specified")
+		return fmt.Errorf("either query or tableName must be specified")
 	}
+
 	if dl.format != "" && dl.formatter != nil {
-		return nil, fmt.Errorf("only one of 'format' or 'formatter' must be specified")
+		return fmt.Errorf("only one of 'format' or 'formatter' must be specified")
 	}
 
 	if dl.query == "" {
@@ -348,21 +379,82 @@ func applyCloudSQLDocumentLoaderOptions(options []DocumentLoaderOption) (*Docume
 	}
 
 	if dl.formatter == nil {
-		switch strings.ToLower(dl.format) {
-		case "": // default formatter
-			dl.formatter = textFormatter
-		case "csv":
-			dl.formatter = csvFormatter
-		case "text":
-			dl.formatter = textFormatter
-		case "json":
-			dl.formatter = jsonFormatter
-		case "yaml":
-			dl.formatter = yamlFormatter
-		default:
-			return nil, fmt.Errorf("format must be type: 'csv', 'text', 'json', 'yaml'")
+		f, ok := formatters[strings.ToLower(dl.format)]
+		if !ok {
+			return fmt.Errorf("format must be type: 'csv', 'text', 'json', 'yaml'")
+		}
+		dl.formatter = f
+	}
+	return nil
+}
+
+func validateQuery(query string) error {
+	re := regexp.MustCompile(`(?i)^\s*SELECT\s+.+\s+FROM\s+([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)\b`)
+	if !re.MatchString(query) {
+		return errors.New("query is not valid")
+	}
+	return nil
+}
+
+func (l *DocumentLoader) getFieldDescriptions(ctx context.Context) ([]pgconn.FieldDescription, error) {
+	rows, err := l.engine.Pool.Query(ctx, fmt.Sprintf("%s LIMIT 1", l.query))
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+	return rows.FieldDescriptions(), nil
+}
+
+func (l *DocumentLoader) configureColumns(fieldDescriptions []pgconn.FieldDescription) error {
+	if len(l.contentColumns) == 0 {
+		l.contentColumns = []string{fieldDescriptions[0].Name}
+	}
+
+	if len(l.metadataColumns) == 0 {
+		for _, col := range fieldDescriptions {
+			if !slices.Contains(l.contentColumns, col.Name) {
+				l.metadataColumns = append(l.metadataColumns, col.Name)
+			}
 		}
 	}
 
-	return dl, nil
+	if l.metadataJSONColumn == "" {
+		l.metadataJSONColumn = defaultMetadataJSONColumn
+	}
+
+	found := false
+	for _, col := range fieldDescriptions {
+		if col.Name == l.metadataJSONColumn {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("metadata JSON column '%s' not found in query result", l.metadataJSONColumn)
+	}
+	return nil
+}
+
+func (l *DocumentLoader) validateColumns(fieldDescriptions []pgconn.FieldDescription) error {
+	allNames := make(map[string]struct{})
+	for _, name := range l.contentColumns {
+		allNames[name] = struct{}{}
+	}
+	for _, name := range l.metadataColumns {
+		allNames[name] = struct{}{}
+	}
+
+	for name := range allNames {
+		found := false
+		for _, col := range fieldDescriptions {
+			if col.Name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("column '%s' not found in query result", name)
+		}
+	}
+	return nil
 }
