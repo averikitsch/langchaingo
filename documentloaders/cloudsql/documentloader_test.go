@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/averikitsch/langchaingo/util/cloudsqlutil"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/tmc/langchaingo/util/cloudsqlutil"
 )
 
 type pgvectorContainer struct {
@@ -23,14 +23,28 @@ type pgvectorContainer struct {
 	URI string
 }
 
-func setupPgvector(ctx context.Context) (*pgvectorContainer, error) {
+func setupPgvector(ctx context.Context, t *testing.T) (*pgvectorContainer, error) {
+	t.Helper()
+
+	getOrDefaultEnv := func(key, defaultValue string) string {
+		v := os.Getenv(key)
+		if v == "" {
+			v = defaultValue
+		}
+		return v
+	}
+
+	username := getOrDefaultEnv("POSTGRES_USERNAME", "testuser")
+	password := getOrDefaultEnv("POSTGRES_PASSWORD", "testpassword")
+	db := getOrDefaultEnv("POSTGRES_DB", "testdb")
+
 	req := testcontainers.ContainerRequest{
 		Image:        "pgvector/pgvector:pg16", // Or your preferred version
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
-			"POSTGRES_USER":     "testuser",
-			"POSTGRES_PASSWORD": "testpassword",
-			"POSTGRES_DB":       "testdb",
+			"POSTGRES_USER":     username,
+			"POSTGRES_PASSWORD": password,
+			"POSTGRES_DB":       db,
 		},
 		WaitingFor: wait.ForLog("database system is ready to accept connections").
 			WithOccurrence(2).WithStartupTimeout(5 * time.Second),
@@ -55,9 +69,9 @@ func setupPgvector(ctx context.Context) (*pgvectorContainer, error) {
 
 	uri := &url.URL{
 		Scheme:   "postgres",
-		User:     url.UserPassword("testuser", "testpassword"),
+		User:     url.UserPassword(username, password),
 		Host:     net.JoinHostPort(ip, mappedPort.Port()),
-		Path:     "/testdb",
+		Path:     fmt.Sprintf("/%v", db),
 		RawQuery: "sslmode=disable",
 	}
 
@@ -66,8 +80,9 @@ func setupPgvector(ctx context.Context) (*pgvectorContainer, error) {
 	return pgvC, nil
 }
 
-func setUpEngine() (cloudsqlutil.PostgresEngine, func(), error) {
-	username := os.Getenv("POSTGRES_USERNAME")
+func setUpEngine(t *testing.T) (cloudsqlutil.PostgresEngine, func(), error) {
+	t.Helper()
+	username := os.Getenv("POSTGRES_USER")
 	password := os.Getenv("POSTGRES_PASSWORD")
 	database := os.Getenv("POSTGRES_DATABASE")
 	projectID := os.Getenv("POSTGRES_PROJECT_ID")
@@ -76,13 +91,13 @@ func setUpEngine() (cloudsqlutil.PostgresEngine, func(), error) {
 
 	// if not all the environments are define for connect to cloud sql, use the test container
 	if username == "" || password == "" || database == "" || projectID == "" || region == "" || instance == "" {
-		log.Println("one or more environment variables are empty (POSTGRES_USERNAME, POSTGRES_PASSWORD, POSTGRES_DATABASE, " +
+		log.Println("one or more environment variables are empty (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DATABASE, " +
 			"POSTGRES_PROJECT_ID, POSTGRES_REGION, POSTGRES_INSTANCE). Using test container")
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
-		container, err := setupPgvector(ctx)
+		container, err := setupPgvector(ctx, t)
 		if err != nil {
 			return cloudsqlutil.PostgresEngine{}, nil, err
 		}
@@ -110,8 +125,9 @@ func setUpEngine() (cloudsqlutil.PostgresEngine, func(), error) {
 	return eng, nil, err
 }
 
-func setup() (cloudsqlutil.PostgresEngine, func(), error) {
-	eng, cleanUp, err := setUpEngine()
+func setup(t *testing.T) (cloudsqlutil.PostgresEngine, func(), error) {
+	t.Helper()
+	eng, cleanUp, err := setUpEngine(t)
 	if err != nil {
 		if cleanUp != nil {
 			cleanUp()
@@ -129,7 +145,7 @@ func setup() (cloudsqlutil.PostgresEngine, func(), error) {
 
 func TestNewDocumentLoader_Fail(t *testing.T) {
 	t.Parallel()
-	testEngine, teardown, err := setup()
+	testEngine, teardown, err := setup(t)
 	require.NoError(t, err)
 	t.Cleanup(teardown)
 
@@ -144,7 +160,7 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "invalid engine",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{})
+				return NewDocumentLoader(context.Background(), cloudsqlutil.PostgresEngine{}, []DocumentLoaderOption{})
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -155,18 +171,18 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "invalid query",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{WithEngine(testEngine), WithQuery("SELECT FROM table")})
+				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithQuery("SELECT FROM table")})
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
 				assert.Nil(t, d)
-				assert.EqualError(t, err, "query is not valid")
+				assert.ErrorContains(t, err, "query is not valid for the following regular expression")
 			},
 		},
 		{
 			name: "table does not exist",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{WithEngine(testEngine), WithTableName("invalidtable")})
+				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("invalidtable")})
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -175,20 +191,9 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid  metadata JSON column (using default)",
-			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{WithEngine(testEngine), WithTableName("testtable")})
-			},
-			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
-				t.Helper()
-				assert.Nil(t, d)
-				assert.ErrorContains(t, err, "metadata JSON column 'langchain_metadata' not found in query result")
-			},
-		},
-		{
 			name: "invalid column name for content",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{WithEngine(testEngine), WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithContentColumns([]string{"c_invalid"})})
+				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithContentColumns([]string{"c_invalid"})})
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -199,7 +204,7 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "invalid column name for metadata",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{WithEngine(testEngine), WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithMetadataColumns([]string{"c_invalid"})})
+				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithMetadataColumns([]string{"c_invalid"})})
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -219,7 +224,7 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 
 func TestNewDocumentLoader_Success(t *testing.T) {
 	t.Parallel()
-	testEngine, teardown, err := setup()
+	testEngine, teardown, err := setup(t)
 	require.NoError(t, err)
 	t.Cleanup(teardown)
 
@@ -234,7 +239,7 @@ func TestNewDocumentLoader_Success(t *testing.T) {
 		{
 			name: "success without content column",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{WithEngine(testEngine), WithTableName("testtable"),
+				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"),
 					WithMetadataJSONColumn("c_json_metadata")})
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
@@ -242,7 +247,7 @@ func TestNewDocumentLoader_Success(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, d)
 				assert.Equal(t, d.engine, testEngine)
-				assert.Equal(t, d.query, "SELECT * FROM public.testtable")
+				assert.Equal(t, d.query, "SELECT * FROM \"public\".\"testtable\"")
 				assert.Equal(t, d.tableName, "testtable")
 				assert.Equal(t, d.schemaName, "public")
 				assert.Equal(t, d.contentColumns, []string{"c_id"})
@@ -253,7 +258,7 @@ func TestNewDocumentLoader_Success(t *testing.T) {
 		{
 			name: "success with content column",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), []DocumentLoaderOption{WithEngine(testEngine), WithTableName("testtable"),
+				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"),
 					WithMetadataJSONColumn("c_json_metadata"),
 					WithContentColumns([]string{"c_content"})})
 			},
@@ -262,7 +267,7 @@ func TestNewDocumentLoader_Success(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, d)
 				assert.Equal(t, d.engine, testEngine)
-				assert.Equal(t, d.query, "SELECT * FROM public.testtable")
+				assert.Equal(t, d.query, "SELECT * FROM \"public\".\"testtable\"")
 				assert.Equal(t, d.tableName, "testtable")
 				assert.Equal(t, d.schemaName, "public")
 				assert.Equal(t, d.contentColumns, []string{"c_content"})
@@ -283,7 +288,7 @@ func TestNewDocumentLoader_Success(t *testing.T) {
 func TestDocumentLoader_Load(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	testEngine, teardown, err := setup()
+	testEngine, teardown, err := setup(t)
 	require.NoError(t, err)
 	t.Cleanup(teardown)
 
@@ -291,8 +296,6 @@ func TestDocumentLoader_Load(t *testing.T) {
 	insertRows(t, testEngine)
 
 	options := []DocumentLoaderOption{
-		WithEngine(testEngine),
-		WithTableName("testtable"),
 		WithSchemaName("public"),
 		WithMetadataColumns([]string{"c_id", "c_date", "c_user", "c_session"}),
 		WithMetadataJSONColumn("c_json_metadata"),
@@ -300,7 +303,7 @@ func TestDocumentLoader_Load(t *testing.T) {
 		WithQuery("SELECT * FROM public.testtable WHERE c_session = 100"),
 	}
 
-	l, err := NewDocumentLoader(ctx, options)
+	l, err := NewDocumentLoader(ctx, testEngine, options)
 	require.NoError(t, err)
 	d, err := l.Load(ctx)
 	require.NoError(t, err)
@@ -314,7 +317,7 @@ func TestDocumentLoader_LoadAndSplit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	testEngine, teardown, err := setup()
+	testEngine, teardown, err := setup(t)
 	require.NoError(t, err)
 	t.Cleanup(teardown)
 
@@ -322,8 +325,6 @@ func TestDocumentLoader_LoadAndSplit(t *testing.T) {
 	insertRows(t, testEngine)
 
 	options := []DocumentLoaderOption{
-		WithEngine(testEngine),
-		WithTableName("testtable"),
 		WithSchemaName("public"),
 		WithMetadataColumns([]string{"c_id", "c_date", "c_user", "c_session"}),
 		WithMetadataJSONColumn("c_json_metadata"),
@@ -331,7 +332,7 @@ func TestDocumentLoader_LoadAndSplit(t *testing.T) {
 		WithQuery("SELECT * FROM public.testtable WHERE c_session = 100"),
 	}
 
-	l, err := NewDocumentLoader(ctx, options)
+	l, err := NewDocumentLoader(ctx, testEngine, options)
 	require.NoError(t, err)
 	d, err := l.LoadAndSplit(ctx, nil)
 	require.NoError(t, err)
@@ -345,12 +346,11 @@ func createTable(t *testing.T, testEngine cloudsqlutil.PostgresEngine) {
 	t.Helper()
 
 	err := testEngine.InitVectorstoreTable(context.Background(), cloudsqlutil.VectorstoreTableOptions{
-		TableName:          "testtable",
-		VectorSize:         3,
-		SchemaName:         "public",
-		ContentColumnName:  "c_content",
-		EmbeddingColumn:    "c_embedding",
-		MetadataJSONColumn: "c_json_metadata",
+		TableName:         "testtable",
+		VectorSize:        3,
+		SchemaName:        "public",
+		ContentColumnName: "c_content",
+		EmbeddingColumn:   "c_embedding",
 		IDColumn: cloudsqlutil.Column{
 			Name:     "c_id",
 			Nullable: false,

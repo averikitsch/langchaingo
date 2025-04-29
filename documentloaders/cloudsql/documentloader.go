@@ -5,18 +5,15 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
-	"slices"
 	"strings"
 
-	"github.com/averikitsch/langchaingo/schema"
-	"github.com/averikitsch/langchaingo/textsplitter"
-	"github.com/averikitsch/langchaingo/util/cloudsqlutil"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/textsplitter"
+	"github.com/tmc/langchaingo/util/cloudsqlutil"
 )
 
 const (
@@ -131,9 +128,13 @@ type DocumentLoader struct {
 }
 
 // NewDocumentLoader creates a new DocumentLoader instance.
-func NewDocumentLoader(ctx context.Context, options []DocumentLoaderOption) (*DocumentLoader, error) {
-	documentLoader, err := applyCloudSQLDocumentLoaderOptions(options)
-	if err != nil {
+func NewDocumentLoader(ctx context.Context, engine cloudsqlutil.PostgresEngine, options []DocumentLoaderOption) (*DocumentLoader, error) {
+	documentLoader := &DocumentLoader{
+		engine:     engine,
+		schemaName: defaultSchemaName,
+	}
+
+	if err := applyCloudSQLDocumentLoaderOptions(documentLoader, options); err != nil {
 		return nil, err
 	}
 
@@ -263,7 +264,6 @@ func (l *DocumentLoader) parseDocFromRow(row map[string]any) (schema.Document, e
 
 // Load executes the configured SQL query and returns a list of Document objects.
 func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
-	documents := make([]schema.Document, 0)
 	rows, err := l.engine.Pool.Query(ctx, l.query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
@@ -283,6 +283,7 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 		valuesPrt[i] = t
 	}
 
+	var documents []schema.Document
 	for rows.Next() {
 		if err := rows.Scan(valuesPrt...); err != nil {
 			return nil, fmt.Errorf("scan row failed: %w", err)
@@ -309,7 +310,7 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 }
 
 func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter.TextSplitter) ([]schema.Document, error) {
-	splitteddocs := make([]schema.Document, 0)
+
 	if splitter == nil {
 		splitter = textsplitter.NewRecursiveCharacter()
 	}
@@ -319,6 +320,7 @@ func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter
 		return nil, err
 	}
 
+	var splitDocs []schema.Document
 	for _, doc := range docs {
 		contents, err := splitter.SplitText(doc.PageContent)
 		if err != nil {
@@ -330,109 +332,11 @@ func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter
 				Metadata:    doc.Metadata,
 				Score:       doc.Score,
 			}
-			splitteddocs = append(splitteddocs, newDoc)
+			splitDocs = append(splitDocs, newDoc)
 		}
 	}
 
-	return splitteddocs, nil
-}
-
-func applyCloudSQLDocumentLoaderOptions(options []DocumentLoaderOption) (*DocumentLoader, error) {
-	dl := &DocumentLoader{
-		schemaName: defaultSchemaName,
-	}
-
-	for _, opt := range options {
-		opt(dl)
-	}
-
-	if err := validateFunc(dl); err != nil {
-		return nil, err
-	}
-
-	return dl, nil
-}
-
-func validateFunc(dl *DocumentLoader) error {
-	formatters := map[string]func(_ map[string]any, _ []string) string{
-		"csv":  csvFormatter,
-		"":     textFormatter,
-		"text": textFormatter,
-		"json": jsonFormatter,
-		"yaml": yamlFormatter,
-	}
-
-	if dl.engine.Pool == nil {
-		return fmt.Errorf("engine.Pool must be specified")
-	}
-
-	if dl.query == "" && dl.tableName == "" {
-		return fmt.Errorf("either query or tableName must be specified")
-	}
-
-	if dl.format != "" && dl.formatter != nil {
-		return fmt.Errorf("only one of 'format' or 'formatter' must be specified")
-	}
-
-	if dl.query == "" {
-		dl.query = fmt.Sprintf(`SELECT * FROM %s.%s`, dl.schemaName, dl.tableName)
-	}
-
-	if dl.formatter == nil {
-		f, ok := formatters[strings.ToLower(dl.format)]
-		if !ok {
-			return fmt.Errorf("format must be type: 'csv', 'text', 'json', 'yaml'")
-		}
-		dl.formatter = f
-	}
-	return nil
-}
-
-func validateQuery(query string) error {
-	re := regexp.MustCompile(`(?i)^\s*SELECT\s+.+\s+FROM\s+([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)\b`)
-	if !re.MatchString(query) {
-		return errors.New("query is not valid")
-	}
-	return nil
-}
-
-func (l *DocumentLoader) getFieldDescriptions(ctx context.Context) ([]pgconn.FieldDescription, error) {
-	rows, err := l.engine.Pool.Query(ctx, fmt.Sprintf("%s LIMIT 1", l.query))
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
-	}
-	defer rows.Close()
-	return rows.FieldDescriptions(), nil
-}
-
-func (l *DocumentLoader) configureColumns(fieldDescriptions []pgconn.FieldDescription) error {
-	if len(l.contentColumns) == 0 {
-		l.contentColumns = []string{fieldDescriptions[0].Name}
-	}
-
-	if len(l.metadataColumns) == 0 {
-		for _, col := range fieldDescriptions {
-			if !slices.Contains(l.contentColumns, col.Name) {
-				l.metadataColumns = append(l.metadataColumns, col.Name)
-			}
-		}
-	}
-
-	if l.metadataJSONColumn == "" {
-		l.metadataJSONColumn = defaultMetadataJSONColumn
-	}
-
-	found := false
-	for _, col := range fieldDescriptions {
-		if col.Name == l.metadataJSONColumn {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return fmt.Errorf("metadata JSON column '%s' not found in query result", l.metadataJSONColumn)
-	}
-	return nil
+	return splitDocs, nil
 }
 
 func (l *DocumentLoader) validateColumns(fieldDescriptions []pgconn.FieldDescription) error {
