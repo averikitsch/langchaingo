@@ -160,7 +160,7 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "invalid engine",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), cloudsqlutil.PostgresEngine{}, []DocumentLoaderOption{})
+				return NewDocumentLoader(context.Background(), cloudsqlutil.PostgresEngine{})
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -171,7 +171,8 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "invalid query",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithQuery("SELECT FROM table")})
+				options := []DocumentLoaderOption{WithQuery("SELECT FROM table")}
+				return NewDocumentLoader(context.Background(), testEngine, options...)
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -182,7 +183,8 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "table does not exist",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("invalidtable")})
+				options := []DocumentLoaderOption{WithTableName("invalidtable")}
+				return NewDocumentLoader(context.Background(), testEngine, options...)
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -193,7 +195,8 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "invalid column name for content",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithContentColumns([]string{"c_invalid"})})
+				options := []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithContentColumns([]string{"c_invalid"})}
+				return NewDocumentLoader(context.Background(), testEngine, options...)
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -204,7 +207,8 @@ func TestNewDocumentLoader_Fail(t *testing.T) {
 		{
 			name: "invalid column name for metadata",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithMetadataColumns([]string{"c_invalid"})})
+				options := []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithMetadataColumns([]string{"c_invalid"})}
+				return NewDocumentLoader(context.Background(), testEngine, options...)
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -239,8 +243,8 @@ func TestNewDocumentLoader_Success(t *testing.T) {
 		{
 			name: "success without content column",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"),
-					WithMetadataJSONColumn("c_json_metadata")})
+				options := []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata")}
+				return NewDocumentLoader(context.Background(), testEngine, options...)
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -258,9 +262,8 @@ func TestNewDocumentLoader_Success(t *testing.T) {
 		{
 			name: "success with content column",
 			setDocumentLoader: func() (*DocumentLoader, error) {
-				return NewDocumentLoader(context.Background(), testEngine, []DocumentLoaderOption{WithTableName("testtable"),
-					WithMetadataJSONColumn("c_json_metadata"),
-					WithContentColumns([]string{"c_content"})})
+				options := []DocumentLoaderOption{WithTableName("testtable"), WithMetadataJSONColumn("c_json_metadata"), WithContentColumns([]string{"c_content"})}
+				return NewDocumentLoader(context.Background(), testEngine, options...)
 			},
 			validateFunc: func(t *testing.T, d *DocumentLoader, err error) {
 				t.Helper()
@@ -303,7 +306,7 @@ func TestDocumentLoader_Load(t *testing.T) {
 		WithQuery("SELECT * FROM public.testtable WHERE c_session = 100"),
 	}
 
-	l, err := NewDocumentLoader(ctx, testEngine, options)
+	l, err := NewDocumentLoader(ctx, testEngine, options...)
 	require.NoError(t, err)
 	d, err := l.Load(ctx)
 	require.NoError(t, err)
@@ -332,7 +335,7 @@ func TestDocumentLoader_LoadAndSplit(t *testing.T) {
 		WithQuery("SELECT * FROM public.testtable WHERE c_session = 100"),
 	}
 
-	l, err := NewDocumentLoader(ctx, testEngine, options)
+	l, err := NewDocumentLoader(ctx, testEngine, options...)
 	require.NoError(t, err)
 	d, err := l.LoadAndSplit(ctx, nil)
 	require.NoError(t, err)

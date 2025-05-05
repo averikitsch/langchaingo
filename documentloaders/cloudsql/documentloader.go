@@ -128,7 +128,7 @@ type DocumentLoader struct {
 }
 
 // NewDocumentLoader creates a new DocumentLoader instance.
-func NewDocumentLoader(ctx context.Context, engine cloudsqlutil.PostgresEngine, options []DocumentLoaderOption) (*DocumentLoader, error) {
+func NewDocumentLoader(ctx context.Context, engine cloudsqlutil.PostgresEngine, options ...DocumentLoaderOption) (*DocumentLoader, error) {
 	documentLoader := &DocumentLoader{
 		engine:     engine,
 		schemaName: defaultSchemaName,
@@ -310,7 +310,6 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 }
 
 func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter.TextSplitter) ([]schema.Document, error) {
-
 	if splitter == nil {
 		splitter = textsplitter.NewRecursiveCharacter()
 	}
