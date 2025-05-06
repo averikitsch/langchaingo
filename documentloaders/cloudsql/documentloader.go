@@ -2,14 +2,11 @@ package cloudsql
 
 import (
 	"context"
-	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/textsplitter"
@@ -20,96 +17,6 @@ const (
 	defaultMetadataJSONColumn = "langchain_metadata"
 	defaultSchemaName         = "public"
 )
-
-type valueProcessor struct {
-	extractors map[reflect.Type]func(any) (any, bool)
-}
-
-func newValueProcessor() *valueProcessor {
-	return &valueProcessor{
-		extractors: map[reflect.Type]func(any) (any, bool){
-			reflect.TypeOf(&sql.NullTime{}): func(v any) (any, bool) {
-				if nv, ok := v.(*sql.NullTime); ok && nv.Valid {
-					return nv.Time, true
-				}
-				return nil, false
-			},
-			reflect.TypeOf(&sql.NullString{}): func(v any) (any, bool) {
-				if nv, ok := v.(*sql.NullString); ok && nv.Valid {
-					return nv.String, true
-				}
-				return nil, false
-			},
-			reflect.TypeOf(&sql.NullBool{}): func(v any) (any, bool) {
-				if nv, ok := v.(*sql.NullBool); ok && nv.Valid {
-					return nv.Bool, true
-				}
-				return nil, false
-			},
-			reflect.TypeOf(&sql.NullInt64{}): func(v any) (any, bool) {
-				if nv, ok := v.(*sql.NullInt64); ok && nv.Valid {
-					return nv.Int64, true
-				}
-				return nil, false
-			},
-			reflect.TypeOf(&sql.NullFloat64{}): func(v any) (any, bool) {
-				if nv, ok := v.(*sql.NullFloat64); ok && nv.Valid {
-					return nv.Float64, true
-				}
-				return nil, false
-			},
-			reflect.TypeOf(&sql.RawBytes{}): func(v any) (any, bool) {
-				if rv, ok := v.(*sql.RawBytes); ok {
-					return *rv, true
-				}
-				return nil, false
-			},
-		},
-	}
-}
-
-func (vp *valueProcessor) process(valuesPrt []any, columnNames []string) map[string]any {
-	columnValues := make(map[string]any)
-	for i, name := range columnNames {
-		if handler, ok := vp.extractors[reflect.TypeOf(valuesPrt[i])]; ok {
-			if val, valid := handler(valuesPrt[i]); valid {
-				columnValues[name] = val
-				continue
-			}
-		}
-		columnValues[name] = valuesPrt[i]
-	}
-	return columnValues
-}
-
-type oidProcessor struct {
-	extractors map[pgtype.OID]any
-}
-
-func newOidProcessor() *oidProcessor {
-	return &oidProcessor{
-		extractors: map[pgtype.OID]any{
-			pgtype.TimeOID:        new(sql.NullTime),
-			pgtype.TimestampOID:   new(sql.NullTime),
-			pgtype.TimestamptzOID: new(sql.NullTime),
-			pgtype.DateOID:        new(sql.NullTime),
-			pgtype.VarcharOID:     new(sql.NullString),
-			pgtype.TextOID:        new(sql.NullString),
-			pgtype.JSONOID:        new(sql.NullString),
-			pgtype.BoolOID:        new(sql.NullBool),
-			pgtype.Float4OID:      new(sql.NullFloat64),
-			pgtype.Float8OID:      new(sql.NullFloat64),
-			pgtype.Int2OID:        new(sql.NullInt64),
-			pgtype.Int4OID:        new(sql.NullInt64),
-			pgtype.Int8OID:        new(sql.NullInt64),
-		},
-	}
-}
-
-func (vp *oidProcessor) process(oid pgtype.OID) (any, bool) {
-	v, ok := vp.extractors[oid]
-	return v, ok
-}
 
 // DocumentLoader is responsible for loading documents from a Postgres database.
 type DocumentLoader struct {
@@ -122,9 +29,6 @@ type DocumentLoader struct {
 	metadataJSONColumn string
 	format             string
 	formatter          func(map[string]any, []string) string
-
-	oidProcessor   *oidProcessor
-	valueProcessor *valueProcessor
 }
 
 // NewDocumentLoader creates a new DocumentLoader instance.
@@ -154,9 +58,6 @@ func NewDocumentLoader(ctx context.Context, engine cloudsqlutil.PostgresEngine, 
 	if err := documentLoader.validateColumns(fieldDescriptions); err != nil {
 		return nil, err
 	}
-
-	documentLoader.oidProcessor = newOidProcessor()
-	documentLoader.valueProcessor = newValueProcessor()
 
 	return documentLoader, nil
 }
@@ -222,31 +123,13 @@ func (l *DocumentLoader) parseDocFromRow(row map[string]any) (schema.Document, e
 	pageContent := l.formatter(row, l.contentColumns)
 	metadata := make(map[string]any)
 
-	populateJSONMetadata := func(data []byte) error {
-		var jsonMetadata map[string]any
-		err := json.Unmarshal(data, &jsonMetadata)
-		if err != nil {
-			return fmt.Errorf("failed to parse JSON from column '%s': %w", l.metadataJSONColumn, err)
-		}
-		for k, v := range jsonMetadata {
-			metadata[k] = v
-		}
-		return nil
-	}
-
 	if l.metadataJSONColumn != "" {
-		value := row[l.metadataJSONColumn]
-		switch v := value.(type) {
-		case []byte:
-			if err := populateJSONMetadata(v); err != nil {
-				return schema.Document{}, err
+		value, ok := row[l.metadataJSONColumn]
+		if ok {
+			mapValues := value.(map[string]any)
+			for k, v := range mapValues {
+				metadata[k] = v
 			}
-		case string:
-			if err := populateJSONMetadata([]byte(v)); err != nil {
-				return schema.Document{}, err
-			}
-		default:
-			return schema.Document{}, fmt.Errorf("failed to parse JSON from column '%s': invalid column type", l.metadataJSONColumn)
 		}
 	}
 
@@ -271,31 +154,18 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 	defer rows.Close()
 
 	fieldDescriptions := rows.FieldDescriptions()
-	columnNames := make([]string, len(fieldDescriptions))
-	valuesPrt := make([]any, len(columnNames))
-
-	for i, fd := range fieldDescriptions {
-		columnNames[i] = fd.Name
-		t, ok := l.oidProcessor.process(pgtype.OID(fd.DataTypeOID))
-		if !ok {
-			valuesPrt[i] = new(sql.RawBytes)
-		}
-		valuesPrt[i] = t
-	}
-
 	var documents []schema.Document
+
 	for rows.Next() {
-		if err := rows.Scan(valuesPrt...); err != nil {
-			return nil, fmt.Errorf("scan row failed: %w", err)
+		v, err := rows.Values()
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse row: %w", err)
 		}
-
-		if err = rows.Scan(valuesPrt...); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+		mapColumnNameValue := make(map[string]any)
+		for i, f := range fieldDescriptions {
+			mapColumnNameValue[f.Name] = v[i]
 		}
-
-		columnValues := l.valueProcessor.process(valuesPrt, columnNames)
-
-		doc, err := l.parseDocFromRow(columnValues)
+		doc, err := l.parseDocFromRow(mapColumnNameValue)
 		if err != nil {
 			return nil, err
 		}
@@ -318,24 +188,7 @@ func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter
 	if err != nil {
 		return nil, err
 	}
-
-	var splitDocs []schema.Document
-	for _, doc := range docs {
-		contents, err := splitter.SplitText(doc.PageContent)
-		if err != nil {
-			return nil, fmt.Errorf("failed to split page content: %w", err)
-		}
-		for _, content := range contents {
-			newDoc := schema.Document{
-				PageContent: content,
-				Metadata:    doc.Metadata,
-				Score:       doc.Score,
-			}
-			splitDocs = append(splitDocs, newDoc)
-		}
-	}
-
-	return splitDocs, nil
+	return textsplitter.SplitDocuments(splitter, docs)
 }
 
 func (l *DocumentLoader) validateColumns(fieldDescriptions []pgconn.FieldDescription) error {

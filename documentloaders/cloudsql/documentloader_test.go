@@ -313,7 +313,7 @@ func TestDocumentLoader_Load(t *testing.T) {
 	require.Len(t, d, 1)
 	require.Len(t, d[0].Metadata, 5)
 	assert.Equal(t, "user1", d[0].Metadata["c_user"])
-	assert.Equal(t, int64(100), d[0].Metadata["c_session"])
+	assert.Equal(t, int32(100), d[0].Metadata["c_session"])
 }
 
 func TestDocumentLoader_LoadAndSplit(t *testing.T) {
@@ -342,7 +342,7 @@ func TestDocumentLoader_LoadAndSplit(t *testing.T) {
 	require.Len(t, d, 1)
 	require.Len(t, d[0].Metadata, 5)
 	assert.Equal(t, "user1", d[0].Metadata["c_user"])
-	assert.Equal(t, int64(100), d[0].Metadata["c_session"])
+	assert.Equal(t, int32(100), d[0].Metadata["c_session"])
 }
 
 func createTable(t *testing.T, testEngine cloudsqlutil.PostgresEngine) {
