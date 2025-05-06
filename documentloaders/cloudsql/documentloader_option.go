@@ -1,13 +1,9 @@
 package cloudsql
 
 import (
-	"context"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
-
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const sqlregularexpresion = `(?i)^\s*SELECT\s+.+\s+FROM\s+((")?([a-zA-Z0-9_]+)(")?\.)?(")?([a-zA-Z0-9_]+)(")?\b`
@@ -77,10 +73,10 @@ func applyCloudSQLDocumentLoaderOptions(dl *DocumentLoader, options []DocumentLo
 		opt(dl)
 	}
 
-	return validateFunc(dl)
+	return validateDocumentLoader(dl)
 }
 
-func validateFunc(dl *DocumentLoader) error {
+func validateDocumentLoader(dl *DocumentLoader) error {
 	formatters := map[string]func(_ map[string]any, _ []string) string{
 		"csv":  csvFormatter,
 		"":     textFormatter,
@@ -124,45 +120,5 @@ func validateQuery(query string) error {
 	if !re.MatchString(query) {
 		return fmt.Errorf("query is not valid for the following regular expression: %s", sqlregularexpresion)
 	}
-	return nil
-}
-
-func (l *DocumentLoader) getFieldDescriptions(ctx context.Context) ([]pgconn.FieldDescription, error) {
-	rows, err := l.engine.Pool.Query(ctx, fmt.Sprintf("%s LIMIT 1", l.query))
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
-	}
-	defer rows.Close()
-	return rows.FieldDescriptions(), nil
-}
-
-func (l *DocumentLoader) configureColumns(fieldDescriptions []pgconn.FieldDescription) error {
-	if len(l.contentColumns) == 0 {
-		l.contentColumns = []string{fieldDescriptions[0].Name}
-	}
-
-	if len(l.metadataColumns) == 0 {
-		for _, col := range fieldDescriptions {
-			if !slices.Contains(l.contentColumns, col.Name) {
-				l.metadataColumns = append(l.metadataColumns, col.Name)
-			}
-		}
-	}
-
-	if l.metadataJSONColumn == "" {
-		l.metadataJSONColumn = defaultMetadataJSONColumn
-	} else {
-		found := false
-		for _, col := range fieldDescriptions {
-			if col.Name == l.metadataJSONColumn {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("metadata JSON column '%s' not found in query result", l.metadataJSONColumn)
-		}
-	}
-
 	return nil
 }

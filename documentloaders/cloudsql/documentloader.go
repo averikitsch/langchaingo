@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -38,7 +39,11 @@ func NewDocumentLoader(ctx context.Context, engine cloudsqlutil.PostgresEngine, 
 		schemaName: defaultSchemaName,
 	}
 
-	if err := applyCloudSQLDocumentLoaderOptions(documentLoader, options); err != nil {
+	for _, opt := range options {
+		opt(documentLoader)
+	}
+
+	if err := validateDocumentLoader(documentLoader); err != nil {
 		return nil, err
 	}
 
@@ -51,11 +56,11 @@ func NewDocumentLoader(ctx context.Context, engine cloudsqlutil.PostgresEngine, 
 		return nil, err
 	}
 
-	if err := documentLoader.configureColumns(fieldDescriptions); err != nil {
+	if err = documentLoader.configureColumns(fieldDescriptions); err != nil {
 		return nil, err
 	}
 
-	if err := documentLoader.validateColumns(fieldDescriptions); err != nil {
+	if err = documentLoader.validateColumns(fieldDescriptions); err != nil {
 		return nil, err
 	}
 
@@ -119,7 +124,7 @@ func jsonFormatter(row map[string]any, contentColumns []string) string {
 }
 
 // parseDocFromRow parses a Document from a row of data.
-func (l *DocumentLoader) parseDocFromRow(row map[string]any) (schema.Document, error) {
+func (l *DocumentLoader) parseDocFromRow(row map[string]any) schema.Document {
 	pageContent := l.formatter(row, l.contentColumns)
 	metadata := make(map[string]any)
 
@@ -142,7 +147,7 @@ func (l *DocumentLoader) parseDocFromRow(row map[string]any) (schema.Document, e
 	return schema.Document{
 		PageContent: pageContent,
 		Metadata:    metadata,
-	}, nil
+	}
 }
 
 // Load executes the configured SQL query and returns a list of Document objects.
@@ -165,11 +170,7 @@ func (l *DocumentLoader) Load(ctx context.Context) ([]schema.Document, error) {
 		for i, f := range fieldDescriptions {
 			mapColumnNameValue[f.Name] = v[i]
 		}
-		doc, err := l.parseDocFromRow(mapColumnNameValue)
-		if err != nil {
-			return nil, err
-		}
-		documents = append(documents, doc)
+		documents = append(documents, l.parseDocFromRow(mapColumnNameValue))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -212,5 +213,45 @@ func (l *DocumentLoader) validateColumns(fieldDescriptions []pgconn.FieldDescrip
 			return fmt.Errorf("column '%s' not found in query result", name)
 		}
 	}
+	return nil
+}
+
+func (l *DocumentLoader) getFieldDescriptions(ctx context.Context) ([]pgconn.FieldDescription, error) {
+	rows, err := l.engine.Pool.Query(ctx, fmt.Sprintf("%s LIMIT 1", l.query))
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+	return rows.FieldDescriptions(), nil
+}
+
+func (l *DocumentLoader) configureColumns(fieldDescriptions []pgconn.FieldDescription) error {
+	if len(l.contentColumns) == 0 {
+		l.contentColumns = []string{fieldDescriptions[0].Name}
+	}
+
+	if len(l.metadataColumns) == 0 {
+		for _, col := range fieldDescriptions {
+			if !slices.Contains(l.contentColumns, col.Name) {
+				l.metadataColumns = append(l.metadataColumns, col.Name)
+			}
+		}
+	}
+
+	if l.metadataJSONColumn == "" {
+		l.metadataJSONColumn = defaultMetadataJSONColumn
+	} else {
+		found := false
+		for _, col := range fieldDescriptions {
+			if col.Name == l.metadataJSONColumn {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("metadata JSON column '%s' not found in query result", l.metadataJSONColumn)
+		}
+	}
+
 	return nil
 }
