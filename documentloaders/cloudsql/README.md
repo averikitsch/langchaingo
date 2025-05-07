@@ -6,7 +6,7 @@ Document loader is the utility for loading documents from Cloud SQL for Postgres
 
 Go version >= go 1.22.0
 
-## Document Loader Creation and Retrieving documents
+## Document Loader Usage
 
 `DocumentLoader` uses `PostgresEngine` for connecting with the database. [Learn more about the `PostgresEngine`](https://github.com/tmc/langchaingo/tree/main/internal/cloudsqlutil).
 
