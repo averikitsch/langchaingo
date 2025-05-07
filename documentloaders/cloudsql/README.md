@@ -8,7 +8,7 @@ Go version >= go 1.22.0
 
 ## Document Loader Creation and Retrieving documents
 
-`DocumentLoader` uses `CloudSQLEngine` for connecting with the database. [Here](https://github.com/tmc/langchaingo/tree/main/internal/cloudsqlutil) is more info about postgres engine.
+`DocumentLoader` uses `PostgresEngine` for connecting with the database. [Learn more about the `PostgresEngine`](https://github.com/tmc/langchaingo/tree/main/internal/cloudsqlutil).
 
 ```go
 package main
