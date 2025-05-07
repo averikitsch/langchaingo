@@ -294,7 +294,6 @@ func TestDocumentLoader_Load(t *testing.T) {
 	testEngine, teardown, err := setup(t)
 	require.NoError(t, err)
 	t.Cleanup(teardown)
-
 	createTable(t, testEngine)
 	insertRows(t, testEngine)
 

@@ -78,9 +78,13 @@ func TestDocumentLoaderOption(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			dl := &DocumentLoader{engine: tt.args.engine, schemaName: defaultSchemaName}
-			err := applyCloudSQLDocumentLoaderOptions(dl, tt.args.options)
+			for _, opt := range tt.args.options {
+				opt(dl)
+			}
+
+			err := validateDocumentLoader(dl)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("applyCloudSQLDocumentLoaderOptions() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("validateDocumentLoader() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			tt.validateFunc(t, dl, err)

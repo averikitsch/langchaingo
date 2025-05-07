@@ -68,14 +68,6 @@ func WithMetadataJSONColumn(metadataJSONColumn string) DocumentLoaderOption {
 	}
 }
 
-func applyCloudSQLDocumentLoaderOptions(dl *DocumentLoader, options []DocumentLoaderOption) error {
-	for _, opt := range options {
-		opt(dl)
-	}
-
-	return validateDocumentLoader(dl)
-}
-
 func validateDocumentLoader(dl *DocumentLoader) error {
 	formatters := map[string]func(_ map[string]any, _ []string) string{
 		"csv":  csvFormatter,
