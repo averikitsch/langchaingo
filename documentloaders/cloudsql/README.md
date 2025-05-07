@@ -34,7 +34,10 @@ func main() {
 		panic(fmt.Errorf("error creating PostgresEngine: %s", err))
 	}
 
-	documentLoader, err := cloudsql.NewDocumentLoader(ctx, pgEngine, cloudsql.WithFormat("csv"))
+	documentLoader, err := cloudsql.NewDocumentLoader(ctx,
+		pgEngine,
+		cloudsql.WithQuery("SELECT * FROM my_Table"),
+		cloudsql.WithFormat("csv"))
 	if err != nil {
 		panic(fmt.Errorf("error creating DocumentLoader: %s", err))
 	}
@@ -45,7 +48,7 @@ func main() {
 	}	
 	
 	for _, doc := range docs {
-        fmt.Printf("%v", doc)
+        	fmt.Printf("%v", doc)
 	}
 	
 }
