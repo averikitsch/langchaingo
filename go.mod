@@ -20,10 +20,10 @@ require (
 require (
 	cloud.google.com/go v0.116.0 // indirect
 	cloud.google.com/go/ai v0.7.0 // indirect
-	cloud.google.com/go/alloydb v1.13.0 // indirect
-	cloud.google.com/go/auth v0.11.0 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
-	cloud.google.com/go/compute/metadata v0.5.2 // indirect
+	cloud.google.com/go/alloydb v1.14.0 // indirect
+	cloud.google.com/go/auth v0.14.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
+	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/iam v1.2.2 // indirect
 	cloud.google.com/go/longrunning v0.6.2 // indirect
 	dario.cat/mergo v1.0.0 // indirect
@@ -91,14 +91,15 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
-	github.com/google/s2a-go v0.1.8 // indirect
+	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
-	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/goph/emperror v0.17.2 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -154,7 +155,7 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yargevad/filepathx v1.0.0 // indirect
-	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
+	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	gitlab.com/golang-commonmark/html v0.0.0-20191124015941-a22733972181 // indirect
 	gitlab.com/golang-commonmark/linkify v0.0.0-20191026162114-a0c2df6c8f82 // indirect
@@ -163,20 +164,20 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.54.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
-	go.opentelemetry.io/otel v1.29.0 // indirect
-	go.opentelemetry.io/otel/metric v1.29.0 // indirect
-	go.opentelemetry.io/otel/trace v1.29.0 // indirect
-	golang.org/x/crypto v0.30.0 // indirect
+	go.opentelemetry.io/otel v1.32.0 // indirect
+	go.opentelemetry.io/otel/metric v1.32.0 // indirect
+	go.opentelemetry.io/otel/trace v1.32.0 // indirect
+	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	golang.org/x/time v0.8.0 // indirect
+	golang.org/x/time v0.9.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20241113202542-65e8d215514f // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250122153221-138b5a5a4fd4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
@@ -184,8 +185,8 @@ require (
 
 require (
 	cloud.google.com/go/aiplatform v1.69.0
-	cloud.google.com/go/alloydbconn v1.13.1
-	cloud.google.com/go/cloudsqlconn v1.13.2
+	cloud.google.com/go/alloydbconn v1.13.2
+	cloud.google.com/go/cloudsqlconn v1.14.1
 	cloud.google.com/go/vertexai v0.12.0
 	github.com/AssemblyAI/assemblyai-go-sdk v1.3.0
 	github.com/Code-Hex/go-generics-cache v1.3.1
@@ -193,19 +194,21 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/amikos-tech/chroma-go v0.1.2
+	github.com/averikitsch/langchaingo v0.0.0-20250415234033-ac70ea0e7d0b
 	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.27.12
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.8.1
 	github.com/cohere-ai/tokenizer v1.1.2
 	github.com/fatih/color v1.17.0
-	github.com/gage-technologies/mistral-go v1.0.0
+	github.com/gage-technologies/mistral-go v1.1.0
 	github.com/getzep/zep-go v1.0.4
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gocolly/colly v1.2.0
 	github.com/google/generative-ai-go v0.15.1
 	github.com/google/go-cmp v0.6.0
-	github.com/jackc/pgx/v5 v5.7.1
+	github.com/jackc/pgtype v1.14.0
+	github.com/jackc/pgx/v5 v5.7.2
 	github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/metaphorsystems/metaphor-go v0.0.0-20230816231421-43794c04824e
@@ -222,13 +225,13 @@ require (
 	github.com/weaviate/weaviate-go-client/v4 v4.13.1
 	gitlab.com/golang-commonmark/markdown v0.0.0-20211110145824-bf3e522c626a
 	go.mongodb.org/mongo-driver v1.14.0
-	go.mongodb.org/mongo-driver/v2 v2.0.0-beta1
+	go.mongodb.org/mongo-driver/v2 v2.0.0
 	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
-	golang.org/x/oauth2 v0.24.0
+	golang.org/x/oauth2 v0.25.0
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d
-	google.golang.org/api v0.210.0
-	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/api v0.218.0
+	google.golang.org/grpc v1.70.0
+	google.golang.org/protobuf v1.36.3
 	sigs.k8s.io/yaml v1.3.0
 )
