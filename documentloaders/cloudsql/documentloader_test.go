@@ -47,7 +47,7 @@ func setupPgvector(ctx context.Context, t *testing.T) (*pgvectorContainer, error
 			"POSTGRES_DB":       db,
 		},
 		WaitingFor: wait.ForLog("database system is ready to accept connections").
-			WithOccurrence(2).WithStartupTimeout(5 * time.Second),
+			WithOccurrence(2).WithStartupTimeout(10 * time.Second),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{ContainerRequest: req, Started: true})
@@ -301,7 +301,7 @@ func TestDocumentLoader_Load(t *testing.T) {
 		WithSchemaName("public"),
 		WithMetadataColumns([]string{"c_id", "c_date", "c_user", "c_session"}),
 		WithMetadataJSONColumn("c_json_metadata"),
-		WithFormatter(jsonFormatter),
+		WithCustomFormatter(jsonFormatter),
 		WithQuery("SELECT * FROM public.testtable WHERE c_session = 100"),
 	}
 
@@ -330,7 +330,7 @@ func TestDocumentLoader_LoadAndSplit(t *testing.T) {
 		WithSchemaName("public"),
 		WithMetadataColumns([]string{"c_id", "c_date", "c_user", "c_session"}),
 		WithMetadataJSONColumn("c_json_metadata"),
-		WithFormatter(jsonFormatter),
+		WithCustomFormatter(jsonFormatter),
 		WithQuery("SELECT * FROM public.testtable WHERE c_session = 100"),
 	}
 

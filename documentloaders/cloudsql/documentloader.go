@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/textsplitter"
 	"github.com/tmc/langchaingo/util/cloudsqlutil"
@@ -28,7 +27,6 @@ type DocumentLoader struct {
 	contentColumns     []string
 	metadataColumns    []string
 	metadataJSONColumn string
-	format             string
 	formatter          func(map[string]any, []string) string
 }
 
@@ -51,16 +49,16 @@ func NewDocumentLoader(ctx context.Context, engine cloudsqlutil.PostgresEngine, 
 		return nil, err
 	}
 
-	fieldDescriptions, err := documentLoader.getFieldDescriptions(ctx)
+	columNames, err := documentLoader.getColumNames(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = documentLoader.configureColumns(fieldDescriptions); err != nil {
+	if err = documentLoader.configureColumns(columNames); err != nil {
 		return nil, err
 	}
 
-	if err = documentLoader.validateColumns(fieldDescriptions); err != nil {
+	if err = documentLoader.validateColumns(columNames); err != nil {
 		return nil, err
 	}
 
@@ -192,7 +190,7 @@ func (l *DocumentLoader) LoadAndSplit(ctx context.Context, splitter textsplitter
 	return textsplitter.SplitDocuments(splitter, docs)
 }
 
-func (l *DocumentLoader) validateColumns(fieldDescriptions []pgconn.FieldDescription) error {
+func (l *DocumentLoader) validateColumns(columnNames []string) error {
 	allNames := make(map[string]struct{})
 	for _, name := range l.contentColumns {
 		allNames[name] = struct{}{}
@@ -202,55 +200,48 @@ func (l *DocumentLoader) validateColumns(fieldDescriptions []pgconn.FieldDescrip
 	}
 
 	for name := range allNames {
-		found := false
-		for _, col := range fieldDescriptions {
-			if col.Name == name {
-				found = true
-				break
-			}
+		if found := slices.Contains(columnNames, name); found {
+			continue
 		}
-		if !found {
-			return fmt.Errorf("column '%s' not found in query result", name)
-		}
+		return fmt.Errorf("column '%s' not found in query result", name)
 	}
+
 	return nil
 }
 
-func (l *DocumentLoader) getFieldDescriptions(ctx context.Context) ([]pgconn.FieldDescription, error) {
+func (l *DocumentLoader) getColumNames(ctx context.Context) ([]string, error) {
 	rows, err := l.engine.Pool.Query(ctx, fmt.Sprintf("%s LIMIT 1", l.query))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
-	return rows.FieldDescriptions(), nil
+
+	colNames := make([]string, len(rows.FieldDescriptions()))
+	for i, description := range rows.FieldDescriptions() {
+		colNames[i] = description.Name
+	}
+	return colNames, nil
 }
 
-func (l *DocumentLoader) configureColumns(fieldDescriptions []pgconn.FieldDescription) error {
+func (l *DocumentLoader) configureColumns(columnNames []string) error {
 	if len(l.contentColumns) == 0 {
-		l.contentColumns = []string{fieldDescriptions[0].Name}
+		l.contentColumns = []string{columnNames[0]}
 	}
 
 	if len(l.metadataColumns) == 0 {
-		for _, col := range fieldDescriptions {
-			if !slices.Contains(l.contentColumns, col.Name) {
-				l.metadataColumns = append(l.metadataColumns, col.Name)
+		for _, col := range columnNames {
+			if !slices.Contains(l.contentColumns, col) {
+				l.metadataColumns = append(l.metadataColumns, col)
 			}
 		}
 	}
 
-	if l.metadataJSONColumn == "" {
+	if strings.TrimSpace(l.metadataJSONColumn) != "" && !slices.Contains(columnNames, l.metadataJSONColumn) {
+		return fmt.Errorf("column '%s' not found in query result %v", l.metadataJSONColumn, columnNames)
+	}
+
+	if l.metadataJSONColumn == "" && slices.Contains(columnNames, defaultMetadataJSONColumn) {
 		l.metadataJSONColumn = defaultMetadataJSONColumn
-	} else {
-		found := false
-		for _, col := range fieldDescriptions {
-			if col.Name == l.metadataJSONColumn {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("metadata JSON column '%s' not found in query result", l.metadataJSONColumn)
-		}
 	}
 
 	return nil

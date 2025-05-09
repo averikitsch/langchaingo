@@ -45,30 +45,10 @@ func TestDocumentLoaderOption(t *testing.T) {
 			validateFunc: validateTableNameAndQueryAreNotEmpty(),
 		},
 		{
-			name: "format and formatter are not empty",
-			args: args{
-				engine: testEngine,
-				options: []DocumentLoaderOption{WithTableName("testtable"), WithFormat("json"), WithFormatter(func(_ map[string]interface{}, _ []string) string {
-					return "formatter"
-				})},
-			},
-			wantErr:      true,
-			validateFunc: validateFormatAndFormatterAreNotEmpty(),
-		},
-		{
-			name: "invalid format ",
-			args: args{
-				engine:  testEngine,
-				options: []DocumentLoaderOption{WithTableName("testtable"), WithFormat("invalidformat")},
-			},
-			wantErr:      true,
-			validateFunc: validateInvalidFormat(),
-		},
-		{
 			name: "success",
 			args: args{
 				engine:  testEngine,
-				options: []DocumentLoaderOption{WithTableName("testtable"), WithFormat("json")},
+				options: []DocumentLoaderOption{WithTableName("testtable"), WithJSONFormatter()},
 			},
 			wantErr:      false,
 			validateFunc: validateSuccess(),
@@ -102,22 +82,6 @@ func validateSuccess() func(t *testing.T, c *DocumentLoader, err error) {
 		assert.Nil(t, err)
 		require.NotNil(t, c)
 		assert.Equal(t, c.query, "SELECT * FROM \"public\".\"testtable\"")
-	}
-}
-
-func validateInvalidFormat() func(t *testing.T, c *DocumentLoader, err error) {
-	return func(t *testing.T, c *DocumentLoader, err error) {
-		t.Helper()
-		assert.NotNil(t, c)
-		assert.EqualError(t, err, "format must be type: 'csv', 'text', 'json', 'yaml'")
-	}
-}
-
-func validateFormatAndFormatterAreNotEmpty() func(t *testing.T, c *DocumentLoader, err error) {
-	return func(t *testing.T, c *DocumentLoader, err error) {
-		t.Helper()
-		assert.NotNil(t, c)
-		assert.EqualError(t, err, "only one of 'format' or 'formatter' must be specified")
 	}
 }
 

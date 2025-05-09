@@ -3,7 +3,6 @@ package cloudsql
 import (
 	"fmt"
 	"regexp"
-	"strings"
 )
 
 const sqlregularexpresion = `(?i)^\s*SELECT\s+.+\s+FROM\s+((")?([a-zA-Z0-9_]+)(")?\.)?(")?([a-zA-Z0-9_]+)(")?\b`
@@ -32,18 +31,38 @@ func WithTableName(tableName string) DocumentLoaderOption {
 	}
 }
 
-// WithFormatter sets a custom formatter to convert row data into document content.
-func WithFormatter(formatter func(map[string]interface{}, []string) string) DocumentLoaderOption {
+// WithCustomFormatter sets a custom formatter to convert row data into document content.
+func WithCustomFormatter(formatter func(map[string]interface{}, []string) string) DocumentLoaderOption {
 	return func(documentLoader *DocumentLoader) {
 		documentLoader.formatter = formatter
 	}
 }
 
-// WithFormat sets the format for the document content. Predefined formats are "csv", "text", "json", and "yaml".
-// Only one of WithFormat or WithFormatter should be specified.
-func WithFormat(format string) DocumentLoaderOption {
+// WithJSONFormatter sets a json formatter to convert row data into document content.
+func WithJSONFormatter() DocumentLoaderOption {
 	return func(documentLoader *DocumentLoader) {
-		documentLoader.format = format
+		documentLoader.formatter = jsonFormatter
+	}
+}
+
+// WithTextFormatter sets a text formatter to convert row data into document content.
+func WithTextFormatter() DocumentLoaderOption {
+	return func(documentLoader *DocumentLoader) {
+		documentLoader.formatter = textFormatter
+	}
+}
+
+// WithYAMLFormatter sets a yaml formatter to convert row data into document content.
+func WithYAMLFormatter() DocumentLoaderOption {
+	return func(documentLoader *DocumentLoader) {
+		documentLoader.formatter = yamlFormatter
+	}
+}
+
+// WithCSVFormatter sets a csv formatter to convert row data into document content.
+func WithCSVFormatter() DocumentLoaderOption {
+	return func(documentLoader *DocumentLoader) {
+		documentLoader.formatter = csvFormatter
 	}
 }
 
@@ -69,14 +88,6 @@ func WithMetadataJSONColumn(metadataJSONColumn string) DocumentLoaderOption {
 }
 
 func validateDocumentLoader(dl *DocumentLoader) error {
-	formatters := map[string]func(_ map[string]any, _ []string) string{
-		"csv":  csvFormatter,
-		"":     textFormatter,
-		"text": textFormatter,
-		"json": jsonFormatter,
-		"yaml": yamlFormatter,
-	}
-
 	if dl.engine.Pool == nil {
 		return fmt.Errorf("engine.Pool must be specified")
 	}
@@ -89,20 +100,13 @@ func validateDocumentLoader(dl *DocumentLoader) error {
 		return fmt.Errorf("only one of 'table_name' or 'query' should be specified")
 	}
 
-	if dl.format != "" && dl.formatter != nil {
-		return fmt.Errorf("only one of 'format' or 'formatter' must be specified")
-	}
-
 	if dl.query == "" {
 		dl.query = fmt.Sprintf(`SELECT * FROM "%s"."%s"`, dl.schemaName, dl.tableName)
 	}
 
 	if dl.formatter == nil {
-		f, ok := formatters[strings.ToLower(dl.format)]
-		if !ok {
-			return fmt.Errorf("format must be type: 'csv', 'text', 'json', 'yaml'")
-		}
-		dl.formatter = f
+		// default formatter
+		dl.formatter = textFormatter
 	}
 	return nil
 }
