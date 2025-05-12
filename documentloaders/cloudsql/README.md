@@ -37,7 +37,7 @@ func main() {
 	documentLoader, err := cloudsql.NewDocumentLoader(ctx,
 		pgEngine,
 		cloudsql.WithQuery("SELECT * FROM my_Table"),
-		cloudsql.WithFormat("csv"))
+		cloudsql.WithCSVFormatter())
 	if err != nil {
 		panic(fmt.Errorf("error creating DocumentLoader: %s", err))
 	}
