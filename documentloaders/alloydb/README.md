@@ -37,7 +37,7 @@ func main() {
 	documentLoader, err := alloydb.NewDocumentLoader(ctx,
 		pgEngine,
 		alloydb.WithQuery("SELECT * FROM my_Table"),
-		alloydb.WithFormat("csv"))
+		alloydb.WithCSVFormatter())
 	if err != nil {
 		panic(fmt.Errorf("error creating DocumentLoader: %s", err))
 	}
